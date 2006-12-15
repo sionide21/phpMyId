@@ -1,0 +1,97 @@
+myOpenID - A standalone, single user, OpenID Identity Provider
+
+by: CJ Niemira <siege (at) siege (dot) org>
+(c) 2006
+http://siege.org/projects/myOpenID
+
+
+myOpenID is a small, fairly lightweight, standalone, single user Identity
+Provider for OpenID authentication. It comprises a single PHP script that can be
+used by one individual to run their own personal OpenID "IdP."
+
+This program requires no external libraries, and has very minimal requirements.
+It should run on any PHP 4/5 server, and as long as it built without
+intentionally disabling the bcmath functions, it should support 'Smart Mode.'
+This program caches all data using built-in PHP session handling, so it requires
+no database, and no explicit write access to the file system.
+
+User authentication is done using HTTP Digest authentication, so your password
+is never transmitted over the wire in plain text.
+
+
+For more information on OpenID, please see http://openid.net
+
+
+INSTALLATION
+
+myOpenID can be installed on just about any PHP server. It is recommended that
+you use a server that you own and control.
+
+1) You'll need to decide your login name and password. This is what you will use
+   to authenticate yourself to myOpenID. Your login name can be anything you
+   like.
+
+   To create your password, you will need an MD5 hashing utility. If you are a
+   Linux or OSX user, you can use openssl. Simply open a terminal and type:
+
+    $ echo -n 'username:myOpenID:password' | openssl md5
+
+   If you are a Windows user, and do not already have an MD5 hashing tool, one
+   is available at http://siege.org/projects/myOpenID . To use it, download
+   the exe, and open a cmd session. Use it as follows:
+
+    C:\Documents and Settings\cniemira>cd Desktop
+    C:\Documents and Settings\cniemira\Desktop>md5.exe -d"username:myOpenID:password"
+
+   In either case, make sure to substitute your username and password where
+   indicated. The string "myOpenID" should not be changed. The resulting output
+   is your Digest password that can be entered into the 'auth_password' field
+   where indicated in the php script.
+
+
+2) To finish installation, simply upload or copy this file, after editing it to
+   contain your username and passsword, to a web accessable directory on your
+   PHP server. You can even rename it if you like.
+
+
+3) Visit the corrosponding URL for the file you just uploaded and you will be
+   greeted by a message like the following:
+
+    This is an OpenID server endpoint. For more information, see http://openid.net/
+    http://siege.org:80/myopenid.php
+
+   The second URL, in this case the one for siege.org, is your Identity Provider
+   URL. It is this URL you must link as your openid.server.
+
+   The preferred way of setting this up is to determine the URL you wish to
+   authenticate as (for example "siege.org", in my case), and add the following
+   to the HTML head section for the index/default document:
+
+    <link rel="openid.server" href="http://siege.org:80/myopenid.php">
+    <link rel="openid.delegate" href="http://siege.org:80/myopenid.php">
+
+   You may now claim to own that URL on any site that uses OpenID.
+
+   As an alternative to editing another document, you may refer directly to the
+   myOpenID.php script as your claimed identity (aka, your OpenID login). It
+   contains the necessary headers automatically, and you do not need to specify
+   the port number.
+
+   For example, I could log in to an OpenID protected site as:
+
+    http://siege.org			- because I placed the server and
+					  delegate headers in the page presented
+					  by that url.
+	- or -
+    http://siege.org/myopenid.php	- because the script automatically adds
+					  the required headers.
+
+   I could also use:
+	- http://siege.org
+	- siege.org (I don't have to specify the "http://" part)
+	- siege.org/myopenid.php
+	- siege.org:80
+	- siege.org:80/myopenid.php
+	- www.siege.org
+	- and so on...
+

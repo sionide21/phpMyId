@@ -1,0 +1,17 @@
+Version 0.2
+- Added support for PHP4, including a better mechanism for getting Digest
+  authentication headers which should work with non-Apache servers
+- Added a (hidden) logout mode, usable by calling
+  myOpenID.php?openid.mode=logout
+- Fixed a bug which occurred when associate mode was called and was unable to
+  produce a secure key. Future queries from that handle would then fail
+  check_authentication mode queries
+- The lifetime for a smart-mode client is now same as the default cache life of
+  the session minus ten seconds, which should be just under three hours
+- Renamed the 'sha20' function to 'sha1_20' (to designate using 'sha1' to get
+  a 20 byte hash)
+- Some code and debug cleanup
+
+
+Version 0.1
+- Initial Release
