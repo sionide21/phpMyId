@@ -1,8 +1,14 @@
+Version 0.3
+- The project has been renamed to phpMyID to avoid confusion with
+  www.myOpenId.com
+- Fixed a bug related to the use of the 'auth-int' Digest qop. This would have
+  only affected Opera users (as it's the only browser which supports auth-int).
+
 Version 0.2
 - Added support for PHP4, including a better mechanism for getting Digest
   authentication headers which should work with non-Apache servers
 - Added a (hidden) logout mode, usable by calling
-  myOpenID.php?openid.mode=logout
+  MyID.php?openid.mode=logout
 - Fixed a bug which occurred when associate mode was called and was unable to
   produce a secure key. Future queries from that handle would then fail
   check_authentication mode queries

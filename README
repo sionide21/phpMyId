@@ -1,11 +1,11 @@
-myOpenID - A standalone, single user, OpenID Identity Provider
+phpMyID - A standalone, single user, OpenID Identity Provider
 
 by: CJ Niemira <siege (at) siege (dot) org>
 (c) 2006
-http://siege.org/projects/myOpenID
+http://siege.org/projects/phpMyID
 
 
-myOpenID is a small, fairly lightweight, standalone, single user Identity
+phpMyID is a small, fairly lightweight, standalone, single user Identity
 Provider for OpenID authentication. It comprises a single PHP script that can be
 used by one individual to run their own personal OpenID "IdP."
 
@@ -24,27 +24,27 @@ For more information on OpenID, please see http://openid.net
 
 INSTALLATION
 
-myOpenID can be installed on just about any PHP server. It is recommended that
+phpMyID can be installed on just about any PHP server. It is recommended that
 you use a server that you own and control.
 
 1) You'll need to decide your login name and password. This is what you will use
-   to authenticate yourself to myOpenID. Your login name can be anything you
+   to authenticate yourself to phpMyID. Your login name can be anything you
    like.
 
    To create your password, you will need an MD5 hashing utility. If you are a
    Linux or OSX user, you can use openssl. Simply open a terminal and type:
 
-    $ echo -n 'username:myOpenID:password' | openssl md5
+    $ echo -n 'username:phpMyID:password' | openssl md5
 
    If you are a Windows user, and do not already have an MD5 hashing tool, one
-   is available at http://siege.org/projects/myOpenID . To use it, download
+   is available at http://siege.org/projects/phpMyID . To use it, download
    the exe, and open a cmd session. Use it as follows:
 
     C:\Documents and Settings\cniemira>cd Desktop
-    C:\Documents and Settings\cniemira\Desktop>md5.exe -d"username:myOpenID:password"
+    C:\Documents and Settings\cniemira\Desktop>md5.exe -d"username:phpMyID:password"
 
    In either case, make sure to substitute your username and password where
-   indicated. The string "myOpenID" should not be changed. The resulting output
+   indicated. The string "phpMyID" should not be changed. The resulting output
    is your Digest password that can be entered into the 'auth_password' field
    where indicated in the php script.
 
@@ -73,7 +73,7 @@ you use a server that you own and control.
    You may now claim to own that URL on any site that uses OpenID.
 
    As an alternative to editing another document, you may refer directly to the
-   myOpenID.php script as your claimed identity (aka, your OpenID login). It
+   phpMyID.php script as your claimed identity (aka, your OpenID login). It
    contains the necessary headers automatically, and you do not need to specify
    the port number.
 

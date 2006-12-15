@@ -1,12 +1,12 @@
 <?
 /*
- * myOpenID - A standalone, single user, OpenID Identity Provider
+ * phpMyID - A standalone, single user, OpenID Identity Provider
  *
  * by: CJ Niemira <siege (at) siege (dot) org>
  * (c) 2006
- * http://siege.org/projects/myOpenID
+ * http://siege.org/projects/phpMyID
  *
- * Version: 0.2
+ * Version: 0.3
  *
  * This code is licensed under the GNU General Public License
  * http://www.gnu.org/licenses/gpl.html
@@ -17,7 +17,7 @@
  * *************************************************************************** *
  * You must change these values:
  *	auth_username = login name
- *	auth_password = md5(username:myOpenID:password)
+ *	auth_password = md5(username:phpMyID:password)
  *
  * Default username = 'test', password = 'test'
  */
@@ -59,10 +59,6 @@ $sreg = array (
  * DO NOT ALTER ANYTHING BELOW THIS POINT UNLESS YOU KNOW WHAT YOU ARE DOING!
  */
 
-$profile['auth_domain'] = $_SERVER['SERVER_NAME'];
-$profile['auth_realm'] = 'myOpenID';
-$profile['lifetime'] = ((session_cache_expire() * 60) - 10);
-
 $idp_url = sprintf("%s://%s:%s%s",
 		   ($_SERVER["HTTPS"] == 'on' ? 'https' : 'http'),
 		   $_SERVER['SERVER_NAME'],
@@ -73,6 +69,10 @@ $req_url = sprintf("%s://%s%s",
 		   ($_SERVER["HTTPS"] == 'on' ? 'https' : 'http'),
 		   $_SERVER['HTTP_HOST'],
 		   $_SERVER["REQUEST_URI"]);
+
+$profile['auth_domain'] = "$req_url $idp_url";
+$profile['auth_realm'] = 'phpMyID';
+$profile['lifetime'] = ((session_cache_expire() * 60) - 10);
 
 $known = array(
 	'assoc_types'	=> array('HMAC-SHA1'),
@@ -308,6 +308,8 @@ function checkid ( $wait ) {
 			: $_SERVER['PHP_AUTH_DIGEST'];
 	}
 
+	$stale = false;
+
 	// is the user trying to log in?
 	if ($wait && ! is_null($digest) && $user_authenticated === false) {
 		debug($digest);
@@ -320,9 +322,17 @@ function checkid ( $wait ) {
 			$hdr[$m[1]] = $m[2] ? $m[2] : $m[3];
 		debug($hdr);
 
-		if ($profile['auth_username'] == $hdr['username']) {
+		if ($hdr['nonce'] != $_SESSION['uniqid'])
+			$stale = true;
+
+		if ($profile['auth_username'] == $hdr['username'] && ! $stale) {
+
+			// the entity body should always be null in this case
+			$entity_body = '';
 			$a1 = $profile['auth_password'];
-			$a2 = md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'])));
+			$a2 = $hdr['qop'] == 'auth-int'
+				? md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'], md5($entity_body))))
+				: md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'])));
 			$ok = md5(implode(':', array($a1, $hdr['nonce'], $hdr['nc'], $hdr['cnonce'], $hdr['qop'], $a2)));
 
 			// successful login!
@@ -348,8 +358,11 @@ function checkid ( $wait ) {
 	// if the user is not logged in, send the login headers
 	} elseif ($user_authenticated === false) {
 		if ($wait) {
+			$uid = uniqid(mt_rand(1,9));
+			$_SESSION['uniqid'] = $uid;
+
 			header('HTTP/1.0 401 Unauthorized');
-			header(sprintf('WWW-Authenticate: Digest qop="auth-int, auth", algorithm=MD5, domain="%s", realm="%s", nonce="%s", opaque="%s"', $profile['auth_domain'], $profile['auth_realm'], uniqid(mt_rand(1,9)), md5($profile['auth_realm'])));
+			header(sprintf('WWW-Authenticate: Digest qop="auth-int, auth", realm="%s", domain="%s", nonce="%s", opaque="%s", stale="%s", algorithm="MD5"', $profile['auth_realm'], $profile['auth_domain'], $uid, md5($profile['auth_realm']), $stale ? 'true' : 'false'));
 			$q = strpos($return_to, '?') ? '&' : '?';
 			wrap_refresh($return_to . $q . 'openid.mode=cancel');
 
@@ -492,7 +505,7 @@ function debug ($x) {
 		$x = ob_get_clean();
 	}
 
-	error_log($x . "\n", 3, "/var/tmp/myOpenID.debug.log");
+	error_log($x . "\n", 3, "/var/tmp/phpMyID.debug.log");
 }
 
 
@@ -669,7 +682,7 @@ function wrap_html ( $message ) {
 	echo '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
 <head>
-<title>myOpenID</title>
+<title>phpMyID</title>
 <link rel="openid.server" href="' . $req_url . '" />
 <link rel="openid.delegate" href="' . $idp_url . '" />
 </head>
@@ -709,7 +722,7 @@ function wrap_refresh ($url) {
 	echo '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
 <head>
-<title>myOpenID</title>
+<title>phpMyID</title>
 <meta http-equiv="refresh" content="0;url=' . $url . '">
 </head>
 <body>
@@ -738,7 +751,7 @@ function x_or ($a, $b) {
  */
 
 // Start the user session
-session_name('myOpenID_Server_SID');
+session_name('phpMyID_Server');
 session_set_cookie_params(0, dirname($_SERVER['PHP_SELF']), $profile['domain']);
 session_start();
 
