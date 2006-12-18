@@ -1,3 +1,11 @@
+Version 0.4
+- Added support for external configuration files, and multiple user setups.
+- Adjusted the idp_url parameter to remove the port number if it is a default
+  value. This was necessary because some clients have decided to normalize the
+  URLs they receive, and while such behavior is valid according to RFCs 2396 and
+  3986, it's just a pain for me. I'd rather that all URLs be validated strictly
+  as provided.
+
 Version 0.3
 - The project has been renamed to phpMyID to avoid confusion with
   www.myOpenId.com

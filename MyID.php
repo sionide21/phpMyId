@@ -1,4 +1,4 @@
-<?
+<?php
 /*
  * phpMyID - A standalone, single user, OpenID Identity Provider
  *
@@ -6,7 +6,7 @@
  * (c) 2006
  * http://siege.org/projects/phpMyID
  *
- * Version: 0.3
+ * Version: 0.4
  *
  * This code is licensed under the GNU General Public License
  * http://www.gnu.org/licenses/gpl.html
@@ -22,10 +22,10 @@
  * Default username = 'test', password = 'test'
  */
 
-$profile = array(
-	'auth_username'	=> 	'test',
-	'auth_password' =>	'e8358914a32e1ce3c62836db4babaa01'
-);
+#$profile = array(
+#	'auth_username'	=> 	'test',
+#	'auth_password' =>	'e8358914a32e1ce3c62836db4babaa01'
+#);
 
 /*
  * Optional - Simple Registration Extension:
@@ -38,7 +38,7 @@ $profile = array(
  *   http://openid.net/specs/openid-simple-registration-extension-1_0.html
  */
 
-$sreg = array (
+#$sreg = array (
 #	'nickname'		=> 'Joe',
 #	'email'			=> 'joe@example.com',
 #	'fullname'		=> 'Joe Example',
@@ -48,7 +48,7 @@ $sreg = array (
 #	'country'		=> 'US',
 #	'language'		=> 'en',
 #	'timezone'		=> 'America/New_York'
-);
+#);
 
 
 
@@ -58,21 +58,40 @@ $sreg = array (
  * Internal configuration
  * DO NOT ALTER ANYTHING BELOW THIS POINT UNLESS YOU KNOW WHAT YOU ARE DOING!
  */
+define('PHPMYID_STARTED', true);
 
-$idp_url = sprintf("%s://%s:%s%s",
-		   ($_SERVER["HTTPS"] == 'on' ? 'https' : 'http'),
-		   $_SERVER['SERVER_NAME'],
-		   $_SERVER['SERVER_PORT'],
-		   $_SERVER['PHP_SELF']);
+if (! isset($profile) || ! is_array($profile))
+	if (! @include('MyID.config.php'))
+		error_500('Configuration is missing.');
 
-$req_url = sprintf("%s://%s%s",
-		   ($_SERVER["HTTPS"] == 'on' ? 'https' : 'http'),
-		   $_SERVER['HTTP_HOST'],
-		   $_SERVER["REQUEST_URI"]);
+// We only want to specify the port number if it's non-default, or consumers
+// might try to normalize it and cause problems
+$port = (($_SERVER["HTTPS"] == 'on' && $_SERVER['SERVER_PORT'] == 443)
+	  || $_SERVER['SERVER_PORT'] == 80)
+		? ''
+		: ':' . $_SERVER['SERVER_PORT'];
 
-$profile['auth_domain'] = "$req_url $idp_url";
-$profile['auth_realm'] = 'phpMyID';
-$profile['lifetime'] = ((session_cache_expire() * 60) - 10);
+if (! in_array('idp_url', $profile))
+	$profile['idp_url'] = sprintf("%s://%s%s%s",
+			     ($_SERVER["HTTPS"] == 'on' ? 'https' : 'http'),
+			      $_SERVER['SERVER_NAME'],
+			      $port,
+			      $_SERVER['PHP_SELF']);
+
+if (! in_array('req_url', $profile))
+	$profile['req_url'] = sprintf("%s://%s%s",
+			     ($_SERVER["HTTPS"] == 'on' ? 'https' : 'http'),
+			      $_SERVER['HTTP_HOST'],
+			      $_SERVER["REQUEST_URI"]);
+
+if (! in_array('auth_domain', $profile))
+	$profile['auth_domain'] = $profile['req_url'] . ' ' . $profile['idp_url'];
+
+if (! in_array('auth_realm', $profile))
+	$profile['auth_realm'] = 'phpMyID';
+
+if (! in_array('lifetime', $profile))
+	$profile['lifetime'] = ((session_cache_expire() * 60) - 10);
 
 $known = array(
 	'assoc_types'	=> array('HMAC-SHA1'),
@@ -251,7 +270,7 @@ function check_authentication_mode () {
 
 function checkid ( $wait ) {
 	debug("checkid : $wait");
-	global $idp_url, $known, $profile, $sreg, $user_authenticated;
+	global $known, $profile, $sreg, $user_authenticated;
 
 	// Get the options, use defaults as necessary
 	$return_to = strlen($_GET['openid_return_to'])
@@ -281,6 +300,11 @@ function checkid ( $wait ) {
 	// required and optional make no difference to us
 	$sreg_required .= ',' . $sreg_optional;
 
+	// make sure i am this identifier
+	if ($identity != $profile['idp_url'])
+		error_get($return_to, "Invalid identity: '$identity'");
+
+	// begin setting up return keys
 	$keys = array(
 		'mode' => 'id_res'
 	);
@@ -338,6 +362,7 @@ function checkid ( $wait ) {
 			// successful login!
 			if ($hdr['response'] == $ok) {
 				$_SESSION['auth_username'] = $hdr['username'];
+				$_SESSION['auth_url'] = $profile['idp_url'];
 				$user_authenticated = true;
 
 			// too many failures
@@ -347,16 +372,9 @@ function checkid ( $wait ) {
 		}
 	}
 
-	// make sure i am this identifier
-	if ($identity != $idp_url) {
-		if ($wait) {
-			$keys['mode'] = 'cancel';
-		} else {
-			$keys['user_setup_url'] = $idp_url;
-		}
-
 	// if the user is not logged in, send the login headers
-	} elseif ($user_authenticated === false) {
+	if ($user_authenticated === false || $identity != $_SESSION['auth_url']) {
+		$_SESSION['auth_url'] = null;
 		if ($wait) {
 			$uid = uniqid(mt_rand(1,9));
 			$_SESSION['uniqid'] = $uid;
@@ -367,7 +385,7 @@ function checkid ( $wait ) {
 			wrap_refresh($return_to . $q . 'openid.mode=cancel');
 
 		} else {
-			$keys['user_setup_url'] = $idp_url;
+			$keys['user_setup_url'] = $profile['idp_url'];
 		}
 
 	// the user is logged in
@@ -380,7 +398,7 @@ function checkid ( $wait ) {
 			list ($assoc_handle, $shared_secret) = new_assoc();
 		}
 
-		$keys['identity'] = $idp_url;
+		$keys['identity'] = $profile['idp_url'];
 		$keys['assoc_handle'] = $assoc_handle;
 		$keys['return_to'] = $return_to;
 
@@ -432,20 +450,20 @@ function error_mode () {
 
 
 function logout_mode () {
-	global $idp_url, $user_authenticated;
+	global $profile, $user_authenticated;
 
 	if (! $user_authenticated)
 		error_400();
 
 	session_destroy();
-	wrap_refresh($idp_url);
+	wrap_refresh($profile['idp_url']);
 }
 
 
 function no_mode () {
-	global $idp_url, $user_authenticated;
+	global $profile, $user_authenticated;
 
-	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>' . $idp_url);
+	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>' . $profile['idp_url']);
 }
 
 
@@ -676,15 +694,15 @@ function sha1_20 ($v) {
 
 
 function wrap_html ( $message ) {
-	global $idp_url, $req_url;
+	global $profile;
 
 	header('Content-Type: text/html; charset=UTF-8');
 	echo '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
 <head>
 <title>phpMyID</title>
-<link rel="openid.server" href="' . $req_url . '" />
-<link rel="openid.delegate" href="' . $idp_url . '" />
+<link rel="openid.server" href="' . $profile['req_url'] . '" />
+<link rel="openid.delegate" href="' . $profile['idp_url'] . '" />
 </head>
 <body>
 <p>' . $message . '</p>

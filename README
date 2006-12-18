@@ -46,19 +46,61 @@ you use a server that you own and control.
    In either case, make sure to substitute your username and password where
    indicated. The string "phpMyID" should not be changed. The resulting output
    is your Digest password that can be entered into the 'auth_password' field
-   where indicated in the php script.
+   where indicated below.
 
 
-2) To finish installation, simply upload or copy this file, after editing it to
-   contain your username and passsword, to a web accessable directory on your
-   PHP server. You can even rename it if you like.
+2) Follow exactly one of the following steps to finalize your phpMyID script
+   configuration.
 
 
-3) Visit the corrosponding URL for the file you just uploaded and you will be
+2a) For a single user with an internal configuration (easiest):
+    Edit the file MyID.php and look for the 'configuration' section up top.
+    You will need to uncomment the '$profile' section, and optionally the
+    '$sreg' section. Simply change the field values as needed.
+
+    To finish installation, upload or copy only the file MyID.php, to a web
+    accessable directory on your PHP server. You can rename it if you like. This
+    is your ID file.
+
+    To upgrade phpMyID, you follow the same installation path.
+
+
+2b) For a single user with an external configuration:
+    Edit the file MyID.config.php. You will need to change the field values for
+    the '$profile' section, and optionally uncomment and change any fields in
+    the '$sreg' section to set your profile.
+
+    Do not edit the file MyID.php
+
+    To finish installation, upload or copy both the files MyID.config.php and
+    MyID.php to a web accessable directory on your PHP server. You can rename
+    MyID.php if you like, as it is your ID file.
+
+    To upgrade phpMyID, you only need to replace MyID.php with the new version.
+
+
+2c) For muliple users:
+    For each user, make a copy of the file MyID.config.php and give it a unique
+    name (such as 'usersname.php', 'cjniemira.php', 'soandso.php', etc...).
+    Edit the copied file and change the field values for the '$profile' section.
+    Optionally, you can uncomment and change any fields in the '$sreg' section
+    to set the user's profile.
+
+    Do not edit the file MyID.php
+
+    To finish installation, upload or copy both the files MyID.php file and
+    all copies of the 'user' file to the same web accessable directory on your
+    PHP server. For each person using the system, the renamed copy of
+    'MyId.config.php' which contains their profile information is their ID file.
+
+    To upgrade phpMyID, you only need to replace MyID.php with the new version.
+
+
+3) Visit the corrosponding URL for the ID file you just uploaded and you will be
    greeted by a message like the following:
 
     This is an OpenID server endpoint. For more information, see http://openid.net/
-    http://siege.org:80/myopenid.php
+    http://siege.org/MyID.php
 
    The second URL, in this case the one for siege.org, is your Identity Provider
    URL. It is this URL you must link as your openid.server.
@@ -67,8 +109,8 @@ you use a server that you own and control.
    authenticate as (for example "siege.org", in my case), and add the following
    to the HTML head section for the index/default document:
 
-    <link rel="openid.server" href="http://siege.org:80/myopenid.php">
-    <link rel="openid.delegate" href="http://siege.org:80/myopenid.php">
+    <link rel="openid.server" href="http://siege.org/MyID.php">
+    <link rel="openid.delegate" href="http://siege.org/MyID.php">
 
    You may now claim to own that URL on any site that uses OpenID.
 
@@ -83,15 +125,13 @@ you use a server that you own and control.
 					  delegate headers in the page presented
 					  by that url.
 	- or -
-    http://siege.org/myopenid.php	- because the script automatically adds
+    http://siege.org/MyID.php		- because the script automatically adds
 					  the required headers.
 
    I could also use:
 	- http://siege.org
 	- siege.org (I don't have to specify the "http://" part)
-	- siege.org/myopenid.php
-	- siege.org:80
-	- siege.org:80/myopenid.php
+	- siege.org/MyID.php
 	- www.siege.org
 	- and so on...
 
