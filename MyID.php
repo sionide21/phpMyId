@@ -24,7 +24,7 @@
 
 #$profile = array(
 #	'auth_username'	=> 	'test',
-#	'auth_password' =>	'e8358914a32e1ce3c62836db4babaa01'
+#	'auth_password' =>	'37fa04faebe5249023ed1f6cc867329b'
 #);
 
 /*
@@ -59,39 +59,6 @@
  * DO NOT ALTER ANYTHING BELOW THIS POINT UNLESS YOU KNOW WHAT YOU ARE DOING!
  */
 define('PHPMYID_STARTED', true);
-
-if (! isset($profile) || ! is_array($profile))
-	if (! @include('MyID.config.php'))
-		error_500('Configuration is missing.');
-
-// We only want to specify the port number if it's non-default, or consumers
-// might try to normalize it and cause problems
-$port = (($_SERVER["HTTPS"] == 'on' && $_SERVER['SERVER_PORT'] == 443)
-	  || $_SERVER['SERVER_PORT'] == 80)
-		? ''
-		: ':' . $_SERVER['SERVER_PORT'];
-
-if (! in_array('idp_url', $profile))
-	$profile['idp_url'] = sprintf("%s://%s%s%s",
-			     ($_SERVER["HTTPS"] == 'on' ? 'https' : 'http'),
-			      $_SERVER['SERVER_NAME'],
-			      $port,
-			      $_SERVER['PHP_SELF']);
-
-if (! in_array('req_url', $profile))
-	$profile['req_url'] = sprintf("%s://%s%s",
-			     ($_SERVER["HTTPS"] == 'on' ? 'https' : 'http'),
-			      $_SERVER['HTTP_HOST'],
-			      $_SERVER["REQUEST_URI"]);
-
-if (! in_array('auth_domain', $profile))
-	$profile['auth_domain'] = $profile['req_url'] . ' ' . $profile['idp_url'];
-
-if (! in_array('auth_realm', $profile))
-	$profile['auth_realm'] = 'phpMyID';
-
-if (! in_array('lifetime', $profile))
-	$profile['lifetime'] = ((session_cache_expire() * 60) - 10);
 
 $known = array(
 	'assoc_types'	=> array('HMAC-SHA1'),
@@ -374,7 +341,10 @@ function checkid ( $wait ) {
 
 	// if the user is not logged in, send the login headers
 	if ($user_authenticated === false || $identity != $_SESSION['auth_url']) {
+		// users can only be logged in to one url at a time
+		$_SESSION['auth_username'] = null;
 		$_SESSION['auth_url'] = null;
+
 		if ($wait) {
 			$uid = uniqid(mt_rand(1,9));
 			$_SESSION['uniqid'] = $uid;
@@ -516,14 +486,21 @@ function bin ($n) {
 
 
 function debug ($x) {
-	return true; // debugging off
+	global $profile;
+
+	if (! isset($profile['debug']) || $profile['debug'] === false)
+		return true;
+
+	if (! is_writable(dirname($profile['logfile'])) &! is_writable($profile['logfile']))
+		error_500('Cannot write to debug log: ' . $profile['logfile']);
+
 	if (is_array($x)) {
 		ob_start();
 		print_r($x);
 		$x = ob_get_clean();
 	}
 
-	error_log($x . "\n", 3, "/var/tmp/phpMyID.debug.log");
+	error_log($x . "\n", 3, $profile['logfile']);
 }
 
 
@@ -680,17 +657,69 @@ function secret ( $handle ) {
 }
 
 
+function self_check () {
+	global $profile, $sreg;
+
+	if (! isset($profile) || ! is_array($profile)) {
+		if (! @include('MyID.config.php'))
+			error_500('Configuration is missing.');
+	}
+
+	if (version_compare(phpversion(), '4.2.0', 'lt'))
+		error_500('The required minimum version of PHP is 4.2.0, you are running ' . phpversion());
+
+	$extensions = array('session', 'pcre', 'date');
+	foreach ($extensions as $x) {
+		if (! extension_loaded($x))
+			@dl($x);
+		if (! extension_loaded($x))
+			error_500("Required extension '$x' is missing.");
+	}
+
+	$keys = array('auth_username', 'auth_password');
+	foreach ($keys as $key) {
+		if (! array_key_exists($key, $profile))
+			error_500("'$key' is missing from your profile.");
+	}
+
+	if (! isset($sreg) || ! is_array($sreg))
+		$sreg = array();
+}
+
+
 // Borrowed from PHP-OpenID; http://openidenabled.com
 function sha1_20 ($v) {
+	if (version_compare(phpversion(), '5.0.0', 'ge'))
+		return sha1($v, true);
+
 	$hex = sha1($v);
 	$r = '';
 	for ($i = 0; $i < 40; $i += 2) {
 		$hexcode = substr($hex, $i, 2);
-		$charcode = (int)base_convert($hexcode, 16, 10);
+		$charcode = base_convert($hexcode, 16, 10);
 		$r .= chr($charcode);
 	}
 	return $r;
 }
+
+
+if (! function_exists('sys_get_temp_dir')) {
+function sys_get_temp_dir () {
+	$keys = array('TMP', 'TMPDIR', 'TEMP');
+	foreach ($keys as $key) {
+		if (isset($_ENV[$key]) && is_dir($_ENV[$key]) && is_writable($_ENV[$key]))
+			return realpath($_ENV[$key]);
+	}
+
+	$tmp = tempnam(false, null);
+	if (file_exists($tmp)) {
+		$dir = realpath(dirname($tmp));
+		unlink($tmp);
+		return realpath($dir);
+	}
+
+	return realpath(dirname(__FILE__));
+}}
 
 
 function wrap_html ( $message ) {
@@ -749,6 +778,7 @@ function wrap_refresh ($url) {
 </html>
 ';
 
+	debug('Refresh: ' . $url);
 	exit(0);
 }
 
@@ -768,9 +798,48 @@ function x_or ($a, $b) {
  * App Initialization
  */
 
+// Do a check to be sure everything is set up correctly
+self_check();
+
+
+// Set any remaining profile values
+$port = (($_SERVER["HTTPS"] == 'on' && $_SERVER['SERVER_PORT'] == 443)
+	  || $_SERVER['SERVER_PORT'] == 80)
+		? ''
+		: ':' . $_SERVER['SERVER_PORT'];
+
+$proto = $_SERVER["HTTPS"] == 'on' ? 'https' : 'http';
+
+if (! array_key_exists('idp_url', $profile))
+	$profile['idp_url'] = sprintf("%s://%s%s%s",
+			      $proto,
+			      $_SERVER['SERVER_NAME'],
+			      $port,
+			      $_SERVER['PHP_SELF']);
+
+if (! array_key_exists('req_url', $profile))
+	$profile['req_url'] = sprintf("%s://%s%s%s",
+			      $proto,
+			      $_SERVER['HTTP_HOST'],
+			      $port,
+			      $_SERVER["REQUEST_URI"]);
+
+if (! array_key_exists('auth_domain', $profile))
+	$profile['auth_domain'] = $profile['req_url'] . ' ' . $profile['idp_url'];
+
+if (! array_key_exists('auth_realm', $profile))
+	$profile['auth_realm'] = 'phpMyID';
+
+if (! array_key_exists('lifetime', $profile))
+	$profile['lifetime'] = ((session_cache_expire() * 60) - 10);
+
+if (! array_key_exists('logfile', $profile))
+	$profile['logfile'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $profile['auth_realm'] . '.debug.log';
+
+
 // Start the user session
 session_name('phpMyID_Server');
-session_set_cookie_params(0, dirname($_SERVER['PHP_SELF']), $profile['domain']);
+session_set_cookie_params(0, realpath(dirname($_SERVER['PHP_SELF'])), $profile['domain']);
 session_start();
 
 

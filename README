@@ -135,3 +135,24 @@ you use a server that you own and control.
 	- www.siege.org
 	- and so on...
 
+
+USAGE
+
+There isn't much to using phpMyID other than pointing at it, and logging in.
+If you wish, you can log out by visiting:
+
+  http://yourdomain.com/path/to/MyID.php?openid.mode=logout
+
+
+TROUBLESHOOTING
+
+phpMyID has a built-in debug function that will log information about what it is
+attempting to do. You can activate this by adding 'debug' to your profile array.
+
+  $profile['debug'] = true;
+
+The default location of the debug log is 'phpMyID.debug.log' in your temp dir as
+discovered by sys_get_temp_dir. You can specify an absolute path by setting
+'logfile' in your profile array;
+
+  $profile['logfile'] = '/var/tmp/phpMyID.debug.log';

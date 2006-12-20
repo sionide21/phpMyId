@@ -19,8 +19,9 @@
  */
 
 $profile = array(
+	'debug' => true,
 	'auth_username'	=> 	'test',
-	'auth_password' =>	'e8358914a32e1ce3c62836db4babaa01'
+	'auth_password' =>	'37fa04faebe5249023ed1f6cc867329b'
 );
 
 /*
