@@ -143,6 +143,11 @@ If you wish, you can log out by visiting:
 
   http://yourdomain.com/path/to/MyID.php?openid.mode=logout
 
+There is also a 'log in' mode that will prompt you for credentials without
+having to be referred from a client site.
+
+ http://yourdomain.com/path/to/MyID.php?openid.mode=login
+
 
 TROUBLESHOOTING
 

@@ -68,6 +68,8 @@ $known = array(
 				 'checkid_setup',
 				 'check_authentication',
 				 'error',
+				 'id_res',
+				 'login',
 			 	 'logout'),
 
 	'session_types'	=> array('',
@@ -239,6 +241,8 @@ function checkid ( $wait ) {
 	debug("checkid : $wait");
 	global $known, $profile, $sreg, $user_authenticated;
 
+	user_session();
+
 	// Get the options, use defaults as necessary
 	$return_to = strlen($_GET['openid_return_to'])
 		? $_GET['openid_return_to']
@@ -303,7 +307,7 @@ function checkid ( $wait ) {
 
 	// is the user trying to log in?
 	if ($wait && ! is_null($digest) && $user_authenticated === false) {
-		debug($digest);
+		debug('Digest headers: ' . $digest);
 		$hdr = array();
 
 		// decode the Digest authentication headers
@@ -311,7 +315,7 @@ function checkid ( $wait ) {
 
 		foreach ($mtx as $m)
 			$hdr[$m[1]] = $m[2] ? $m[2] : $m[3];
-		debug($hdr);
+		debug($hdr, 'Parsed digest headers:');
 
 		if ($hdr['nonce'] != $_SESSION['uniqid'])
 			$stale = true;
@@ -320,7 +324,7 @@ function checkid ( $wait ) {
 
 			// the entity body should always be null in this case
 			$entity_body = '';
-			$a1 = $profile['auth_password'];
+			$a1 = strtolower($profile['auth_password']);
 			$a2 = $hdr['qop'] == 'auth-int'
 				? md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'], md5($entity_body))))
 				: md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'])));
@@ -328,13 +332,19 @@ function checkid ( $wait ) {
 
 			// successful login!
 			if ($hdr['response'] == $ok) {
+				debug('Authentication successful');
 				$_SESSION['auth_username'] = $hdr['username'];
 				$_SESSION['auth_url'] = $profile['idp_url'];
 				$user_authenticated = true;
 
 			// too many failures
 			} elseif (strcmp($hdr['nc'], 5) > 0) {
-				wrap_refresh($return_to . $q . 'openid.mode=cancel');
+				debug('Too many password failures');
+				error_get($return_to, 'Too many password failures');
+
+			// failed login
+			} else {
+				debug('Login failed: ' . $hdr['response'] . ' != ' . $ok);
 			}
 		}
 	}
@@ -349,6 +359,7 @@ function checkid ( $wait ) {
 			$uid = uniqid(mt_rand(1,9));
 			$_SESSION['uniqid'] = $uid;
 
+			debug('Prompting user to log in');
 			header('HTTP/1.0 401 Unauthorized');
 			header(sprintf('WWW-Authenticate: Digest qop="auth-int, auth", realm="%s", domain="%s", nonce="%s", opaque="%s", stale="%s", algorithm="MD5"', $profile['auth_realm'], $profile['auth_domain'], $uid, md5($profile['auth_realm']), $stale ? 'true' : 'false'));
 			$q = strpos($return_to, '?') ? '&' : '?';
@@ -397,7 +408,7 @@ function checkid ( $wait ) {
 
 
 function checkid_immediate_mode () {
-	if (! isset($_GET['openid_mode']) || $_GET['openid_mode'] != 'checkid_setup')
+	if (! isset($_GET['openid_mode']) || $_GET['openid_mode'] != 'checkid_immediate')
 		error_500();
 
 	checkid(false);
@@ -419,13 +430,46 @@ function error_mode () {
 }
 
 
+function id_res_mode () {
+	global $profile, $user_authenticated;
+
+	user_session();
+
+	if ($user_authenticated)
+		wrap_html('You are logged in as ' . $_SESSION['auth_username']);
+
+	wrap_html('You are not logged in');
+}
+
+
+function login_mode () {
+	global $profile, $user_authenticated;
+
+	user_session();
+
+	if ($user_authenticated)
+		id_res_mode();
+
+	$keys = array(
+		'mode' => 'checkid_setup',
+		'identity' => $profile['idp_url'],
+		'return_to' => $profile['idp_url']
+	);
+
+	wrap_location($profile['idp_url'], $keys);
+}
+
+
 function logout_mode () {
 	global $profile, $user_authenticated;
+
+	user_session();
 
 	if (! $user_authenticated)
 		error_400();
 
 	session_destroy();
+	debug('User session destroyed.');
 	wrap_refresh($profile['idp_url']);
 }
 
@@ -485,7 +529,7 @@ function bin ($n) {
 }
 
 
-function debug ($x) {
+function debug ($x, $m = null) {
 	global $profile;
 
 	if (! isset($profile['debug']) || $profile['debug'] === false)
@@ -497,7 +541,10 @@ function debug ($x) {
 	if (is_array($x)) {
 		ob_start();
 		print_r($x);
-		$x = ob_get_clean();
+		$x = $m . ($m != null ? "\n" : '') . ob_get_clean();
+
+	} else {
+		$x .= "\n";
 	}
 
 	error_log($x . "\n", 3, $profile['logfile']);
@@ -505,16 +552,11 @@ function debug ($x) {
 
 
 function destroy_assoc_handle ( $id ) {
-	debug("Destroy $id");
-	$old = session_id();
-	session_write_close();
+	debug("Destroying session: $id");
 
 	session_id($id);
 	session_start();
 	session_destroy();
-
-	session_id($old);
-	session_start();
 }
 
 
@@ -581,24 +623,16 @@ function long($b) {
 
 
 function new_assoc ( $expiration = null ) {
-	$old = session_id();
-	session_write_close();
-
 	session_start();
-	session_regenerate_id('false');
+	debug('Started new assoc session: ' . session_id());
 
-	$new = session_id();
+	$id = session_id();
 	$shared_secret = new_secret();
 
-	$_SESSION = array();
 	$_SESSION['expiration'] = $expiration;
 	$_SESSION['shared_secret'] = base64_encode($shared_secret);
-	session_write_close();
 
-	session_id($old);
-	session_start();
-
-	return array($new, $shared_secret);
+	return array($id, $shared_secret);
 }
 
 
@@ -606,7 +640,7 @@ function new_secret () {
 	$r = '';
 	for($i=0; $i<20; $i++)
 		$r .= chr(mt_rand(0, 255));
-	debug("New secret >>>$r<<<\nsize = " . strlen($r));
+	debug("Generated new secret. Size: " . strlen($r));
 	return $r;
 }
 
@@ -625,19 +659,12 @@ function random ( $max ) {
 
 
 function secret ( $handle ) {
-	$len = strlen(session_id());
-	$regex = '/^\w{' . $len . '}$/';
-
-	debug("Get secret for '$handle', which must match '$regex'");
-
-	if (! preg_match($regex, $handle))
+	if (! preg_match('/^\w+$/', $handle))
 		return array(false, 0);
-
-	$sid = session_id();
-	session_write_close();
 
 	session_id($handle);
 	session_start();
+	debug('Started session to acquire key: ' . session_id());
 
 	$secret = session_is_registered('shared_secret')
 		? base64_decode($_SESSION['shared_secret'])
@@ -649,10 +676,7 @@ function secret ( $handle ) {
 
 	session_write_close();
 
-	session_id($sid);
-	session_start();
-
-	debug("expires '$expiration'");
+	debug("Session expires in: '$expiration'");
 	return array($secret, $expiration);
 }
 
@@ -668,7 +692,7 @@ function self_check () {
 	if (version_compare(phpversion(), '4.2.0', 'lt'))
 		error_500('The required minimum version of PHP is 4.2.0, you are running ' . phpversion());
 
-	$extensions = array('session', 'pcre', 'date');
+	$extensions = array('session', 'pcre');
 	foreach ($extensions as $x) {
 		if (! extension_loaded($x))
 			@dl($x);
@@ -722,6 +746,26 @@ function sys_get_temp_dir () {
 }}
 
 
+function user_session () {
+	global $proto, $profile, $user_authenticated;
+
+	session_name('phpMyID_Server');
+	session_set_cookie_params(0,
+				  realpath(dirname($_SERVER['PHP_SELF'])),
+				  $profile['auth_domain'],
+				 ($proto == 'https' ? true : false)
+	);
+	session_start();
+
+	$user_authenticated = (isset($_SESSION['auth_username'])
+			    && $_SESSION['auth_username'] == $profile['auth_username'])
+			? true
+			: false;
+
+	debug('Started user session: ' . session_id() . ' Auth? ' . $user_authenticated);
+}
+
+
 function wrap_html ( $message ) {
 	global $profile;
 
@@ -744,7 +788,7 @@ function wrap_html ( $message ) {
 
 
 function wrap_kv ( $keys ) {
-	debug($keys);
+	debug($keys, 'Wrapped key/vals');
 	header('Content-Type: text/plain; charset=UTF-8');
 	foreach ($keys as $key => $value)
 		printf("%s:%s\n", $key, $value);
@@ -755,7 +799,7 @@ function wrap_kv ( $keys ) {
 
 function wrap_location ($url, $keys) {
 	$keys = append_openid($keys);
-	debug($keys);
+	debug($keys, 'Location keys');
 
 	$q = strpos($url, '?') ? '&' : '?';
 	header('Location: ' . $url . $q . http_build_query($keys));
@@ -788,7 +832,7 @@ function x_or ($a, $b) {
 
 	for ($i = 0; $i < strlen($b); $i++)
 		$r .= $a[$i] ^ $b[$i];
-	debug("Xor >>>$r<<< : " . strlen($r));
+	debug("Xor size: " . strlen($r));
 	return $r;
 }
 
@@ -800,6 +844,7 @@ function x_or ($a, $b) {
 
 // Do a check to be sure everything is set up correctly
 self_check();
+$user_authenticated = false;
 
 
 // Set any remaining profile values
@@ -837,19 +882,6 @@ if (! array_key_exists('logfile', $profile))
 	$profile['logfile'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $profile['auth_realm'] . '.debug.log';
 
 
-// Start the user session
-session_name('phpMyID_Server');
-session_set_cookie_params(0, realpath(dirname($_SERVER['PHP_SELF'])), $profile['domain']);
-session_start();
-
-
-// Decide if the user is authenticated
-$user_authenticated = (isset($_SESSION['auth_username'])
-		    && $_SESSION['auth_username'] == $profile['auth_username'])
-		? true
-		: false;
-
-
 // Decide which runmode, based on user request or default
 $run_mode = (isset($_REQUEST['openid_mode'])
 	  && in_array($_REQUEST['openid_mode'], $known['openid_modes']))
@@ -858,7 +890,7 @@ $run_mode = (isset($_REQUEST['openid_mode'])
 
 
 // Run in the determined runmode
-debug("mode: $run_mode " . time());
-debug($_REQUEST);
+debug("Run mode: $run_mode at: " . time());
+debug($_REQUEST, 'Request params');
 eval($run_mode . '_mode();');
 ?>
