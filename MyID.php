@@ -333,6 +333,7 @@ function checkid ( $wait ) {
 			// successful login!
 			if ($hdr['response'] == $ok) {
 				debug('Authentication successful');
+				debug('User session is: ' . session_id());
 				$_SESSION['auth_username'] = $hdr['username'];
 				$_SESSION['auth_url'] = $profile['idp_url'];
 				$user_authenticated = true;
@@ -466,7 +467,7 @@ function logout_mode () {
 	user_session();
 
 	if (! $user_authenticated)
-		error_400();
+		wrap_html('You were not logged in');
 
 	session_destroy();
 	debug('User session destroyed.');
@@ -554,9 +555,15 @@ function debug ($x, $m = null) {
 function destroy_assoc_handle ( $id ) {
 	debug("Destroying session: $id");
 
+	$sid = session_id();
+	session_write_close();
+
 	session_id($id);
 	session_start();
 	session_destroy();
+
+	session_id($sid);
+	session_start();
 }
 
 
@@ -623,14 +630,27 @@ function long($b) {
 
 
 function new_assoc ( $expiration = null ) {
+	$sid = session_id();
+	$dat = session_encode();
+	session_write_close();
+
 	session_start();
-	debug('Started new assoc session: ' . session_id());
+	session_regenerate_id('false');
 
 	$id = session_id();
 	$shared_secret = new_secret();
+	debug('Started new assoc session: ' . $id);
 
+	$_SESSION = array();
 	$_SESSION['expiration'] = $expiration;
 	$_SESSION['shared_secret'] = base64_encode($shared_secret);
+
+	session_write_close();
+
+	session_id($sid);
+	session_start();
+	$_SESSION = array();
+	session_decode($dat);
 
 	return array($id, $shared_secret);
 }
@@ -640,6 +660,7 @@ function new_secret () {
 	$r = '';
 	for($i=0; $i<20; $i++)
 		$r .= chr(mt_rand(0, 255));
+
 	debug("Generated new secret. Size: " . strlen($r));
 	return $r;
 }
@@ -662,6 +683,10 @@ function secret ( $handle ) {
 	if (! preg_match('/^\w+$/', $handle))
 		return array(false, 0);
 
+	$sid = session_id();
+	$dat = session_encode();
+	session_write_close();
+
 	session_id($handle);
 	session_start();
 	debug('Started session to acquire key: ' . session_id());
@@ -676,7 +701,12 @@ function secret ( $handle ) {
 
 	session_write_close();
 
-	debug("Session expires in: '$expiration'");
+	session_id($sid);
+	session_start();
+	$_SESSION = array();
+	session_decode($dat);
+
+	debug("Session expires in: '$expiration', key length: " . strlen($secret));
 	return array($secret, $expiration);
 }
 
@@ -750,11 +780,6 @@ function user_session () {
 	global $proto, $profile, $user_authenticated;
 
 	session_name('phpMyID_Server');
-	session_set_cookie_params(0,
-				  realpath(dirname($_SERVER['PHP_SELF'])),
-				  $profile['auth_domain'],
-				 ($proto == 'https' ? true : false)
-	);
 	session_start();
 
 	$user_authenticated = (isset($_SESSION['auth_username'])
@@ -762,6 +787,8 @@ function user_session () {
 			? true
 			: false;
 
+	debug($_SESSION['auth_username']);
+	debug($profile['auth_username']);
 	debug('Started user session: ' . session_id() . ' Auth? ' . $user_authenticated);
 }
 
