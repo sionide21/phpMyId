@@ -1,7 +1,7 @@
 phpMyID - A standalone, single user, OpenID Identity Provider
 
 by: CJ Niemira <siege (at) siege (dot) org>
-(c) 2006
+(c) 2006-2007
 http://siege.org/projects/phpMyID
 
 
@@ -27,7 +27,25 @@ INSTALLATION
 phpMyID can be installed on just about any PHP server. It is recommended that
 you use a server that you own and control.
 
-1) You'll need to decide your login name and password. This is what you will use
+1) You first need to determine your authentication realm. By default this is
+   the string 'phpMyID' - however, PHP feels the need to alter this if it is
+   running in "safe mode." If you are using "safe mode" your realm is the
+   string 'phpMyID-12345' where the number 12345 represents the uid of the 
+   script owner on the server.
+
+   If you are uncertain what this means, or if you are running "safe mode," you
+   can upload the script MyID.php to your webserver and view the corresponding
+   URL. If you have made no edits to the script, and have not uploaded the
+   config file, you will get an error like the following:
+
+    Configuration is missing.
+    Default realm: phpMyID-101
+
+   If you did upload the config file or edit the script, you may see a different
+   message, but in either case, the server will tell you the correct realm
+   value to use.
+
+2) Next you must decide your login name and password. This is what you will use
    to authenticate yourself to phpMyID. Your login name can be anything you
    like.
 
@@ -44,16 +62,16 @@ you use a server that you own and control.
     C:\Documents and Settings\cniemira\Desktop>md5.exe -d"username:phpMyID:password"
 
    In either case, make sure to substitute your username and password where
-   indicated. The string "phpMyID" should not be changed. The resulting output
-   is your Digest password that can be entered into the 'auth_password' field
-   where indicated below.
+   indicated. The string "phpMyID" corresponds to your authentication realm as
+   determined in step 1. The resulting output is your Digest password that can
+   be entered into the 'auth_password' field where indicated below.
 
 
-2) Follow exactly one of the following steps to finalize your phpMyID script
+3) Follow exactly one of the following steps to finalize your phpMyID script
    configuration.
 
 
-2a) For a single user with an internal configuration (easiest):
+3a) For a single user with an internal configuration (easiest):
     Edit the file MyID.php and look for the 'configuration' section up top.
     You will need to uncomment the '$profile' section, and optionally the
     '$sreg' section. Simply change the field values as needed.
@@ -65,7 +83,7 @@ you use a server that you own and control.
     To upgrade phpMyID, you follow the same installation path.
 
 
-2b) For a single user with an external configuration:
+3b) For a single user with an external configuration:
     Edit the file MyID.config.php. You will need to change the field values for
     the '$profile' section, and optionally uncomment and change any fields in
     the '$sreg' section to set your profile.
@@ -79,7 +97,7 @@ you use a server that you own and control.
     To upgrade phpMyID, you only need to replace MyID.php with the new version.
 
 
-2c) For muliple users:
+3c) For muliple users:
     For each user, make a copy of the file MyID.config.php and give it a unique
     name (such as 'usersname.php', 'cjniemira.php', 'soandso.php', etc...).
     Edit the copied file and change the field values for the '$profile' section.
@@ -96,13 +114,17 @@ you use a server that you own and control.
     To upgrade phpMyID, you only need to replace MyID.php with the new version.
 
 
-3) Visit the corrosponding URL for the ID file you just uploaded and you will be
+4) Visit the corresponding URL for the ID file you just uploaded and you will be
    greeted by a message like the following:
 
     This is an OpenID server endpoint. For more information, see http://openid.net/
-    http://siege.org/MyID.php
+    Server: http://siege.org/MyID.php
+    Realm: phpMyID-101
 
-   The second URL, in this case the one for siege.org, is your Identity Provider
+   Be certain that the 'Realm' listed exactly matches the value you used when
+   you created your password hash in step 2.
+
+   The Server URL, in this case the one for siege.org, is your Identity Provider
    URL. It is this URL you must link as your openid.server.
 
    The preferred way of setting this up is to determine the URL you wish to
@@ -151,13 +173,23 @@ having to be referred from a client site.
 
 TROUBLESHOOTING
 
-phpMyID has a built-in debug function that will log information about what it is
-attempting to do. You can activate this by adding 'debug' to your profile array.
+*) Turn on the Debug Log
+   phpMyID has a built-in debug function that will log information about what it
+   is attempting to do. You can activate this by adding 'debug' to your profile
+   array.
 
-  $profile['debug'] = true;
+    $profile['debug'] = true;
 
-The default location of the debug log is 'phpMyID.debug.log' in your temp dir as
-discovered by sys_get_temp_dir. You can specify an absolute path by setting
-'logfile' in your profile array;
+   The default location of the debug log is 'phpMyID.debug.log' in your temp dir
+   as discovered by sys_get_temp_dir. If the system temp dir cannot be
+   automatically discovered, phpMyID will attempt to use its own base directory.
+   This will almost certainly fail and generate an error message. Visiting the
+   script URL directly should indicate the problem.
 
-  $profile['logfile'] = '/var/tmp/phpMyID.debug.log';
+   You can specify the location of the log file by setting 'logfile' in your
+   profile array:
+
+    $profile['logfile'] = '/var/tmp/phpMyID.debug.log';
+
+
+*) 

@@ -3,7 +3,7 @@
  * phpMyID - A standalone, single user, OpenID Identity Provider
  *
  * by: CJ Niemira <siege (at) siege (dot) org>
- * (c) 2006
+ * (c) 2006-2007
  * http://siege.org/projects/phpMyID
  *
  * Config File Version 1

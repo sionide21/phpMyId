@@ -3,7 +3,7 @@
  * phpMyID - A standalone, single user, OpenID Identity Provider
  *
  * by: CJ Niemira <siege (at) siege (dot) org>
- * (c) 2006
+ * (c) 2006-2007
  * http://siege.org/projects/phpMyID
  *
  * Version: 0.4
@@ -64,6 +64,7 @@ $known = array(
 	'assoc_types'	=> array('HMAC-SHA1'),
 
 	'openid_modes'	=> array('associate',
+				 'cancel',
 				 'checkid_immediate',
 				 'checkid_setup',
 				 'check_authentication',
@@ -170,6 +171,11 @@ function associate_mode () {
 
 	// Return the keys
 	wrap_kv($keys);
+}
+
+
+function cancel_mode () {
+	wrap_html('Request cancelled.');
 }
 
 
@@ -282,9 +288,12 @@ function checkid ( $wait ) {
 
 	// try to get the digest headers - what a PITA!
 	if (version_compare(phpversion(), '5.0.0', 'lt')) {
-		if (function_exists('apache_request_headers')) {
+		if (function_exists('apache_request_headers') && ini_get('safe_mode') == false) {
 			$arh = apache_request_headers();
 			$hdr = $arh['Authorization'];
+
+		} elseif (isset($_SERVER['PHP_AUTH_DIGEST'])) {
+			$hdr = $_SERVER['PHP_AUTH_DIGEST'];
 
 		} elseif (isset($_SERVER['HTTP_AUTHORIZATION'])) {
 			$hdr = $_SERVER['HTTP_AUTHORIZATION'];
@@ -320,6 +329,9 @@ function checkid ( $wait ) {
 		if ($hdr['nonce'] != $_SESSION['uniqid'])
 			$stale = true;
 
+		if (! isset($_SESSION['failures']))
+			$_SESSION['failures'] = 0;
+
 		if ($profile['auth_username'] == $hdr['username'] && ! $stale) {
 
 			// the entity body should always be null in this case
@@ -339,13 +351,15 @@ function checkid ( $wait ) {
 				$user_authenticated = true;
 
 			// too many failures
-			} elseif (strcmp($hdr['nc'], 5) > 0) {
+			} elseif (strcmp($hdr['nc'], 4) > 0 || $_SESSION['failures'] > 4) {
 				debug('Too many password failures');
-				error_get($return_to, 'Too many password failures');
+				error_get($return_to, 'Too many password failures. Double check your authentication realm. You must restart your browser to try again.');
 
 			// failed login
 			} else {
+				$_SESSION['failures']++;
 				debug('Login failed: ' . $hdr['response'] . ' != ' . $ok);
+				debug('Fail count: ' . $_SESSION['failures']);
 			}
 		}
 	}
@@ -360,7 +374,7 @@ function checkid ( $wait ) {
 			$uid = uniqid(mt_rand(1,9));
 			$_SESSION['uniqid'] = $uid;
 
-			debug('Prompting user to log in');
+			debug('Prompting user to log in. Stale? ' . $stale);
 			header('HTTP/1.0 401 Unauthorized');
 			header(sprintf('WWW-Authenticate: Digest qop="auth-int, auth", realm="%s", domain="%s", nonce="%s", opaque="%s", stale="%s", algorithm="MD5"', $profile['auth_realm'], $profile['auth_domain'], $uid, md5($profile['auth_realm']), $stale ? 'true' : 'false'));
 			$q = strpos($return_to, '?') ? '&' : '?';
@@ -469,6 +483,7 @@ function logout_mode () {
 	if (! $user_authenticated)
 		wrap_html('You were not logged in');
 
+	$_SESSION = array();
 	session_destroy();
 	debug('User session destroyed.');
 	wrap_refresh($profile['idp_url']);
@@ -478,7 +493,7 @@ function logout_mode () {
 function no_mode () {
 	global $profile, $user_authenticated;
 
-	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>' . $profile['idp_url']);
+	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>Server: ' . $profile['idp_url'] . '<br/>Realm: ' . $profile['php_realm']);
 }
 
 
@@ -716,7 +731,7 @@ function self_check () {
 
 	if (! isset($profile) || ! is_array($profile)) {
 		if (! @include('MyID.config.php'))
-			error_500('Configuration is missing.');
+			error_500('Configuration is missing.<br/>Default realm: phpMyID' . (ini_get('safe_mode') ? '-' . getmyuid() : ''));
 	}
 
 	if (version_compare(phpversion(), '4.2.0', 'lt'))
@@ -787,8 +802,6 @@ function user_session () {
 			? true
 			: false;
 
-	debug($_SESSION['auth_username']);
-	debug($profile['auth_username']);
 	debug('Started user session: ' . session_id() . ' Auth? ' . $user_authenticated);
 }
 
@@ -907,6 +920,8 @@ if (! array_key_exists('lifetime', $profile))
 
 if (! array_key_exists('logfile', $profile))
 	$profile['logfile'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $profile['auth_realm'] . '.debug.log';
+
+$profile['php_realm'] = $profile['auth_realm'] . (ini_get('safe_mode') ? '-' . getmyuid() : '');
 
 
 // Decide which runmode, based on user request or default
