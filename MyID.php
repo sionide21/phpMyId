@@ -103,29 +103,29 @@ function associate_mode () {
 		error_400();
 
 	// Get the options, use defaults as necessary
-	$assoc_type = (strlen($_POST['openid_assoc_type'])
+	$assoc_type = (@strlen($_POST['openid_assoc_type'])
 		    && in_array($_POST['openid_assoc_type'], $known['assoc_types']))
 			? $_POST['openid_assoc_type']
 			: 'HMAC-SHA1';
 
-	$session_type = (strlen($_POST['openid_session_type'])
+	$session_type = (@strlen($_POST['openid_session_type'])
 		      && in_array($_POST['openid_session_type'], $known['session_types']))
 			? $_POST['openid_session_type']
 			: '';
 
-	$dh_modulus = (strlen($_POST['openid_dh_modulus']))
+	$dh_modulus = (@strlen($_POST['openid_dh_modulus']))
 		? $_POST['openid_dh_modulus']
 		: ($session_type == 'DH-SHA1'
 			? $p
 			: null);
 
-	$dh_gen = (strlen($_POST['openid_dh_gen']))
+	$dh_gen = (@strlen($_POST['openid_dh_gen']))
 		? $_POST['openid_dh_gen']
 		: ($session_type == 'DH-SHA1'
 			? $g
 			: null);
 
-	$dh_consumer_public = (strlen($_POST['openid_dh_consumer_public']))
+	$dh_consumer_public = (@strlen($_POST['openid_dh_consumer_public']))
 		? $_POST['openid_dh_consumer_public']
 		: ($session_type == 'DH-SHA1'
 			? error_post('dh_consumer_public was not specified')
@@ -184,15 +184,15 @@ function check_authentication_mode () {
 	if (! isset($_POST['openid_mode']) || $_POST['openid_mode'] != 'check_authentication')
 		error_400();
 
-	$assoc_handle = strlen($_POST['openid_assoc_handle'])
+	$assoc_handle = @strlen($_POST['openid_assoc_handle'])
 		? $_POST['openid_assoc_handle']
 		: error_post('Missing assoc_handle');
 
-	$sig = strlen($_POST['openid_sig'])
+	$sig = @strlen($_POST['openid_sig'])
 		? $_POST['openid_sig']
 		: error_post('Missing sig');
 
-	$signed = strlen($_POST['openid_signed'])
+	$signed = @strlen($_POST['openid_signed'])
 		? $_POST['openid_signed']
 		: error_post('Missing signed');
 
@@ -202,7 +202,7 @@ function check_authentication_mode () {
 	);
 
 	// Invalidate the assoc handle if we need to
-	if (strlen($_POST['openid_invalidate_handle'])) {
+	if (@strlen($_POST['openid_invalidate_handle'])) {
 		destroy_assoc_handle($_POST['openid_invalidate_handle']);
 
 		$keys['invalidate_handle'] = $_POST['openid_invalidate_handle'];
@@ -250,27 +250,27 @@ function checkid ( $wait ) {
 	user_session();
 
 	// Get the options, use defaults as necessary
-	$return_to = strlen($_GET['openid_return_to'])
+	$return_to = @strlen($_GET['openid_return_to'])
 		? $_GET['openid_return_to']
 		: error_400('Missing return_to');
 
-	$identity = strlen($_GET['openid_identity'])
+	$identity = @strlen($_GET['openid_identity'])
 			? $_GET['openid_identity']
 			: error_get($return_to, 'Missing identity');
 
-	$assoc_handle = strlen($_GET['openid_assoc_handle'])
+	$assoc_handle = @strlen($_GET['openid_assoc_handle'])
 			? $_GET['openid_assoc_handle']
 			: null;
 
-	$trust_root = strlen($_GET['openid_trust_root'])
+	$trust_root = @strlen($_GET['openid_trust_root'])
 			? $_GET['openid_trust_root']
 			: $return_to;
 
-	$sreg_required = strlen($_GET['openid_sreg_required'])
+	$sreg_required = @strlen($_GET['openid_sreg_required'])
 			? $_GET['openid_sreg_required']
 			: '';
 
-	$sreg_optional = strlen($_GET['openid_sreg_optional'])
+	$sreg_optional = @strlen($_GET['openid_sreg_optional'])
 			? $_GET['openid_sreg_optional']
 			: '';
 
@@ -645,9 +645,11 @@ function long($b) {
 
 
 function new_assoc ( $expiration = null ) {
-	$sid = session_id();
-	$dat = session_encode();
-	session_write_close();
+	if (is_array($_SESSION)) {
+		$sid = session_id();
+		$dat = session_encode();
+		session_write_close();
+	}
 
 	session_start();
 	session_regenerate_id('false');
@@ -662,10 +664,12 @@ function new_assoc ( $expiration = null ) {
 
 	session_write_close();
 
-	session_id($sid);
-	session_start();
-	$_SESSION = array();
-	session_decode($dat);
+	if (isset($sid)) {
+		session_id($sid);
+		session_start();
+		$_SESSION = array();
+		session_decode($dat);
+	}
 
 	return array($id, $shared_secret);
 }
@@ -698,9 +702,11 @@ function secret ( $handle ) {
 	if (! preg_match('/^\w+$/', $handle))
 		return array(false, 0);
 
-	$sid = session_id();
-	$dat = session_encode();
-	session_write_close();
+	if (is_array($_SESSION)) {
+		$sid = session_id();
+		$dat = session_encode();
+		session_write_close();
+	}
 
 	session_id($handle);
 	session_start();
@@ -716,10 +722,12 @@ function secret ( $handle ) {
 
 	session_write_close();
 
-	session_id($sid);
-	session_start();
-	$_SESSION = array();
-	session_decode($dat);
+	if (isset($sid)) {
+		session_id($sid);
+		session_start();
+		$_SESSION = array();
+		session_decode($dat);
+	}
 
 	debug("Session expires in: '$expiration', key length: " . strlen($secret));
 	return array($secret, $expiration);
@@ -795,7 +803,7 @@ function user_session () {
 	global $proto, $profile, $user_authenticated;
 
 	session_name('phpMyID_Server');
-	session_start();
+	@session_start();
 
 	$user_authenticated = (isset($_SESSION['auth_username'])
 			    && $_SESSION['auth_username'] == $profile['auth_username'])
@@ -888,12 +896,12 @@ $user_authenticated = false;
 
 
 // Set any remaining profile values
-$port = (($_SERVER["HTTPS"] == 'on' && $_SERVER['SERVER_PORT'] == 443)
+$port = ((isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == 'on' && $_SERVER['SERVER_PORT'] == 443)
 	  || $_SERVER['SERVER_PORT'] == 80)
 		? ''
 		: ':' . $_SERVER['SERVER_PORT'];
 
-$proto = $_SERVER["HTTPS"] == 'on' ? 'https' : 'http';
+$proto = (isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == 'on') ? 'https' : 'http';
 
 if (! array_key_exists('idp_url', $profile))
 	$profile['idp_url'] = sprintf("%s://%s%s%s",
