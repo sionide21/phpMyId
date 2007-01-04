@@ -28,10 +28,12 @@ phpMyID can be installed on just about any PHP server. It is recommended that
 you use a server that you own and control.
 
 1) You first need to determine your authentication realm. By default this is
-   the string 'phpMyID' - however, PHP feels the need to alter this if it is
-   running in "safe mode." If you are using "safe mode" your realm is the
-   string 'phpMyID-12345' where the number 12345 represents the uid of the 
-   script owner on the server.
+   just the string 'phpMyID' - however, PHP will alter it if running in "safe
+   mode." (I disagree with the reasons for doing this, but I can't control PHP,
+   nor is it possible to work around this on a programmatic level.)
+
+   If you are using "safe mode" your realm is the string 'phpMyID-12345' where
+   the number 12345 represents the uid of the script owner on the server.
 
    If you are uncertain what this means, or if you are running "safe mode," you
    can upload the script MyID.php to your webserver and view the corresponding
@@ -42,8 +44,9 @@ you use a server that you own and control.
     Default realm: phpMyID-101
 
    If you did upload the config file or edit the script, you may see a different
-   message, but in either case, the server will tell you the correct realm
+   message, but in either case, the server should tell you the correct realm
    value to use.
+
 
 2) Next you must decide your login name and password. This is what you will use
    to authenticate yourself to phpMyID. Your login name can be anything you
@@ -52,19 +55,20 @@ you use a server that you own and control.
    To create your password, you will need an MD5 hashing utility. If you are a
    Linux or OSX user, you can use openssl. Simply open a terminal and type:
 
-    $ echo -n 'username:phpMyID:password' | openssl md5
+    $ echo -n 'username:realm:password' | openssl md5
 
    If you are a Windows user, and do not already have an MD5 hashing tool, one
    is available at http://siege.org/projects/phpMyID . To use it, download
    the exe, and open a cmd session. Use it as follows:
 
     C:\Documents and Settings\cniemira>cd Desktop
-    C:\Documents and Settings\cniemira\Desktop>md5.exe -d"username:phpMyID:password"
+    C:\Documents and Settings\cniemira\Desktop>md5.exe -d"username:realm:password"
 
    In either case, make sure to substitute your username and password where
-   indicated. The string "phpMyID" corresponds to your authentication realm as
-   determined in step 1. The resulting output is your Digest password that can
-   be entered into the 'auth_password' field where indicated below.
+   indicated. You must also substitute "realm" for your authentication realm as
+   determined in step 1. The resulting output, which will be a long alphanumeric
+   string, is your Digest password that can be entered into the 'auth_password'
+   field where indicated below.
 
 
 3) Follow exactly one of the following steps to finalize your phpMyID script
@@ -72,6 +76,7 @@ you use a server that you own and control.
 
 
 3a) For a single user with an internal configuration (easiest):
+
     Edit the file MyID.php and look for the 'configuration' section up top.
     You will need to uncomment the '$profile' section, and optionally the
     '$sreg' section. Simply change the field values as needed.
@@ -84,6 +89,7 @@ you use a server that you own and control.
 
 
 3b) For a single user with an external configuration:
+
     Edit the file MyID.config.php. You will need to change the field values for
     the '$profile' section, and optionally uncomment and change any fields in
     the '$sreg' section to set your profile.
@@ -97,7 +103,8 @@ you use a server that you own and control.
     To upgrade phpMyID, you only need to replace MyID.php with the new version.
 
 
-3c) For muliple users:
+3c) For muliple users (NOT RECOMMENDED):
+
     For each user, make a copy of the file MyID.config.php and give it a unique
     name (such as 'usersname.php', 'cjniemira.php', 'soandso.php', etc...).
     Edit the copied file and change the field values for the '$profile' section.
@@ -125,7 +132,7 @@ you use a server that you own and control.
    you created your password hash in step 2.
 
    The Server URL, in this case the one for siege.org, is your Identity Provider
-   URL. It is this URL you must link as your openid.server.
+   URL. This is this URL you must link as your openid.server.
 
    The preferred way of setting this up is to determine the URL you wish to
    authenticate as (for example "siege.org", in my case), and add the following
@@ -134,12 +141,11 @@ you use a server that you own and control.
     <link rel="openid.server" href="http://siege.org/MyID.php">
     <link rel="openid.delegate" href="http://siege.org/MyID.php">
 
-   You may now claim to own that URL on any site that uses OpenID.
+   You may now use your URL with OpenID (again, "siege.org" in my case).
 
    As an alternative to editing another document, you may refer directly to the
    phpMyID.php script as your claimed identity (aka, your OpenID login). It
-   contains the necessary headers automatically, and you do not need to specify
-   the port number.
+   contains the necessary headers automatically.
 
    For example, I could log in to an OpenID protected site as:
 
@@ -173,7 +179,8 @@ having to be referred from a client site.
 
 TROUBLESHOOTING
 
-*) Turn on the Debug Log
+*) Turning on the Debug Log
+
    phpMyID has a built-in debug function that will log information about what it
    is attempting to do. You can activate this by adding 'debug' to your profile
    array.
@@ -192,4 +199,20 @@ TROUBLESHOOTING
     $profile['logfile'] = '/var/tmp/phpMyID.debug.log';
 
 
-*) 
+*) Double check your authentication realm
+
+   Digest authentication can be a bit tricky to set up properly. One of the
+   biggest stumbling blocks has to do with the authentication realm as described
+   under installation step 1. If you change servers or if any settings on your
+   server changes, it is possible that your authentication realm will change as
+   well. If that happens, you will no longer be able to authenticate to phpMyID,
+   and must re-create your password hash.
+
+   When you log in to phpMyID, your web browser will present the authentication
+   realm to you in the login box it pops up. It will say something like this:
+
+    Enter username and password for "phpMyID-101" at http://siege.org
+
+  The quoted value in the above is your authentication realm. Make sure that is
+  the same value you used when you created your password hash.
+

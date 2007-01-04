@@ -17,9 +17,9 @@
  * *************************************************************************** *
  * You must change these values:
  *	auth_username = login name
- *	auth_password = md5(username:phpMyID:password)
+ *	auth_password = md5(username:realm:password)
  *
- * Default username = 'test', password = 'test'
+ * Default username = 'test', password = 'test', realm = 'phpMyID'
  */
 
 #$profile = array(
