@@ -304,7 +304,7 @@ function checkid ( $wait ) {
 	debug('Authentication header: ' . $hdr);
 	$digest = substr($hdr,0,7) == 'Digest '
 		?  substr($hdr, strpos($hdr, ' ') + 1)
-		: null;
+		: $hdr;
 
 	$stale = false;
 
