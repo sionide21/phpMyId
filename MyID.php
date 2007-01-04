@@ -287,30 +287,24 @@ function checkid ( $wait ) {
 	);
 
 	// try to get the digest headers - what a PITA!
-	if (version_compare(phpversion(), '5.0.0', 'lt')) {
-		if (function_exists('apache_request_headers') && ini_get('safe_mode') == false) {
-			$arh = apache_request_headers();
-			$hdr = $arh['Authorization'];
+	if (function_exists('apache_request_headers') && ini_get('safe_mode') == false) {
+		$arh = apache_request_headers();
+		$hdr = $arh['Authorization'];
 
-		} elseif (isset($_SERVER['PHP_AUTH_DIGEST'])) {
-			$hdr = $_SERVER['PHP_AUTH_DIGEST'];
+	} elseif (isset($_SERVER['PHP_AUTH_DIGEST'])) {
+		$hdr = $_SERVER['PHP_AUTH_DIGEST'];
 
-		} elseif (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-			$hdr = $_SERVER['HTTP_AUTHORIZATION'];
-
-		} else {
-			$hdr = null;
-		}
-
-		$digest = substr($hdr,0,7) == 'Digest '
-			?  substr($hdr, strpos($hdr, ' ') + 1)
-			: null;
+	} elseif (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+		$hdr = $_SERVER['HTTP_AUTHORIZATION'];
 
 	} else {
-		$digest = empty($_SERVER['PHP_AUTH_DIGEST'])
-			? null
-			: $_SERVER['PHP_AUTH_DIGEST'];
+		$hdr = null;
 	}
+
+	debug('Authentication header: ' . $hdr);
+	$digest = substr($hdr,0,7) == 'Digest '
+		?  substr($hdr, strpos($hdr, ' ') + 1)
+		: null;
 
 	$stale = false;
 
@@ -326,7 +320,7 @@ function checkid ( $wait ) {
 			$hdr[$m[1]] = $m[2] ? $m[2] : $m[3];
 		debug($hdr, 'Parsed digest headers:');
 
-		if ($hdr['nonce'] != $_SESSION['uniqid'])
+		if (isset($_SESSION['uniqid']) && $hdr['nonce'] != $_SESSION['uniqid'])
 			$stale = true;
 
 		if (! isset($_SESSION['failures']))
