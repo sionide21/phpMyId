@@ -179,6 +179,19 @@ having to be referred from a client site.
 
 TROUBLESHOOTING
 
+*) Received error: "Missing expected authorization realm."
+
+   phpMyID must be able to read http request headers which are only available if
+   PHP is running as a webserver module. If you are using PHP in CGI mode, you
+   must convert the HTTP 'Authorization' header into an environment variable
+   that can then be used to perform the authorization.
+
+   If you are using Apache, the included 'htaccess' file contains a mod_rewrite
+   directive that can be used to set the necessary variable. If you need to use
+   this, it is recommended that you place phpMyID in its own directory, isolated
+   from the rest of your web code.
+
+
 *) Turning on the Debug Log
 
    phpMyID has a built-in debug function that will log information about what it
@@ -199,7 +212,7 @@ TROUBLESHOOTING
     $profile['logfile'] = '/var/tmp/phpMyID.debug.log';
 
 
-*) Double check your authentication realm
+*) Login never works? Double check your authentication realm
 
    Digest authentication can be a bit tricky to set up properly. One of the
    biggest stumbling blocks has to do with the authentication realm as described

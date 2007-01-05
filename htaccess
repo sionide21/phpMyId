@@ -1,0 +1,7 @@
+# If you are running PHP in CGI mode you will need to add these directives to
+# your .htaccess file, or your virtualhost configuration.
+#
+# The easiest way to do so is to simply rename this file ".htaccess"
+
+RewriteEngine on
+RewriteRule \.php$ - [E=PHP_AUTH_DIGEST:%{HTTP:Authorization},L]

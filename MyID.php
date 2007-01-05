@@ -297,6 +297,9 @@ function checkid ( $wait ) {
 	} elseif (isset($_SERVER['HTTP_AUTHORIZATION'])) {
 		$hdr = $_SERVER['HTTP_AUTHORIZATION'];
 
+	} elseif (isset($_ENV['PHP_AUTH_DIGEST'])) {
+		$hdr = $_ENV['PHP_AUTH_DIGEST'];
+
 	} else {
 		$hdr = null;
 	}
@@ -320,8 +323,10 @@ function checkid ( $wait ) {
 			$hdr[$m[1]] = $m[2] ? $m[2] : $m[3];
 		debug($hdr, 'Parsed digest headers:');
 
-		if (isset($_SESSION['uniqid']) && $hdr['nonce'] != $_SESSION['uniqid'])
+		if (isset($_SESSION['uniqid']) && $hdr['nonce'] != $_SESSION['uniqid']) {
 			$stale = true;
+			unset($_SESSION['uniqid']);
+		}
 
 		if (! isset($_SESSION['failures']))
 			$_SESSION['failures'] = 0;
@@ -356,6 +361,9 @@ function checkid ( $wait ) {
 				debug('Fail count: ' . $_SESSION['failures']);
 			}
 		}
+
+	} elseif ($wait && is_null($digest) && $user_authenticated === false && isset($_SESSION['uniqid'])) {
+		error_500('Missing expected authorization header.');
 	}
 
 	// if the user is not logged in, send the login headers
@@ -480,6 +488,8 @@ function logout_mode () {
 	$_SESSION = array();
 	session_destroy();
 	debug('User session destroyed.');
+
+	header('HTTP/1.0 401 Unauthorized');
 	wrap_refresh($profile['idp_url']);
 }
 
