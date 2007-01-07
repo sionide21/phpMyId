@@ -64,6 +64,7 @@ $known = array(
 	'assoc_types'	=> array('HMAC-SHA1'),
 
 	'openid_modes'	=> array('associate',
+				 'authorize',
 				 'cancel',
 				 'checkid_immediate',
 				 'checkid_setup',
@@ -174,6 +175,113 @@ function associate_mode () {
 }
 
 
+function authorize_mode () {
+	global $profile;
+
+	user_session();
+
+	// the user needs refresh urls in their session to access this mode
+	if (! isset($_SESSION['post_auth_url']) || ! isset($_SESSION['cancel_auth_url']))
+		error_500('You may not access this mode directly.');
+
+	// try to get the digest headers - what a PITA!
+	if (function_exists('apache_request_headers') && ini_get('safe_mode') == false) {
+		$arh = apache_request_headers();
+		$hdr = $arh['Authorization'];
+
+	} elseif (isset($_SERVER['PHP_AUTH_DIGEST'])) {
+		$hdr = $_SERVER['PHP_AUTH_DIGEST'];
+
+	} elseif (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+		$hdr = $_SERVER['HTTP_AUTHORIZATION'];
+
+	} elseif (isset($_ENV['PHP_AUTH_DIGEST'])) {
+		$hdr = $_ENV['PHP_AUTH_DIGEST'];
+
+	} elseif (isset($_GET['auth'])) {
+		$hdr = stripslashes(urldecode($_GET['auth']));
+
+	} else {
+		$hdr = null;
+	}
+
+	debug('Authorization header: ' . $hdr);
+	$digest = substr($hdr,0,7) == 'Digest '
+		?  substr($hdr, strpos($hdr, ' ') + 1)
+		: $hdr;
+
+	$stale = false;
+
+	// is the user trying to log in?
+	if (! is_null($digest) && $profile['authorized'] === false) {
+		debug('Digest headers: ' . $digest);
+		$hdr = array();
+
+		// decode the Digest authorization headers
+		preg_match_all('/(\w+)=(?:"([^"]+)"|([^\s,]+))/', $digest, $mtx, PREG_SET_ORDER);
+
+		foreach ($mtx as $m)
+			$hdr[$m[1]] = $m[2] ? $m[2] : $m[3];
+		debug($hdr, 'Parsed digest headers:');
+
+		if (isset($_SESSION['uniqid']) && $hdr['nonce'] != $_SESSION['uniqid']) {
+			$stale = true;
+			unset($_SESSION['uniqid']);
+		}
+
+		if (! isset($_SESSION['failures']))
+			$_SESSION['failures'] = 0;
+
+		if ($profile['auth_username'] == $hdr['username'] && ! $stale) {
+
+			// the entity body should always be null in this case
+			$entity_body = '';
+			$a1 = strtolower($profile['auth_password']);
+			$a2 = $hdr['qop'] == 'auth-int'
+				? md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'], md5($entity_body))))
+				: md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'])));
+			$ok = md5(implode(':', array($a1, $hdr['nonce'], $hdr['nc'], $hdr['cnonce'], $hdr['qop'], $a2)));
+
+			// successful login!
+			if ($hdr['response'] == $ok) {
+				debug('Authentication successful');
+				debug('User session is: ' . session_id());
+				$_SESSION['auth_username'] = $hdr['username'];
+				$_SESSION['auth_url'] = $profile['idp_url'];
+				$profile['authorized'] = true;
+
+				// return to the refresh url if they get in
+				wrap_refresh($_SESSION['post_auth_url']);
+
+			// too many failures
+			} elseif (strcmp($hdr['nc'], 4) > 0 || $_SESSION['failures'] > 4) {
+				debug('Too many password failures');
+				error_get($_SESSION['cancel_auth_url'], 'Too many password failures. Double check your authorization realm. You must restart your browser to try again.');
+
+			// failed login
+			} else {
+				$_SESSION['failures']++;
+				debug('Login failed: ' . $hdr['response'] . ' != ' . $ok);
+				debug('Fail count: ' . $_SESSION['failures']);
+			}
+		}
+
+	} elseif (is_null($digest) && $profile['authorized'] === false && isset($_SESSION['uniqid'])) {
+		error_500('Missing expected authorization header.');
+	}
+
+	// if we get this far the user is not authorized, so send the headers
+	$uid = uniqid(mt_rand(1,9));
+	$_SESSION['uniqid'] = $uid;
+
+	debug('Prompting user to log in. Stale? ' . $stale);
+	header('HTTP/1.0 401 Unauthorized');
+	header(sprintf('WWW-Authenticate: Digest qop="auth-int, auth", realm="%s", domain="%s", nonce="%s", opaque="%s", stale="%s", algorithm="MD5"', $profile['auth_realm'], $profile['auth_domain'], $uid, md5($profile['auth_realm']), $stale ? 'true' : 'false'));
+	$q = strpos($_SESSION['cancel_auth_url'], '?') ? '&' : '?';
+	wrap_refresh($_SESSION['cancel_auth_url'] . $q . 'openid.mode=cancel');
+}
+
+
 function cancel_mode () {
 	wrap_html('Request cancelled.');
 }
@@ -245,7 +353,7 @@ function check_authentication_mode () {
 
 function checkid ( $wait ) {
 	debug("checkid : $wait");
-	global $known, $profile, $sreg, $user_authenticated;
+	global $known, $profile, $sreg;
 
 	user_session();
 
@@ -286,108 +394,32 @@ function checkid ( $wait ) {
 		'mode' => 'id_res'
 	);
 
-	// try to get the digest headers - what a PITA!
-	if (function_exists('apache_request_headers') && ini_get('safe_mode') == false) {
-		$arh = apache_request_headers();
-		$hdr = $arh['Authorization'];
-
-	} elseif (isset($_SERVER['PHP_AUTH_DIGEST'])) {
-		$hdr = $_SERVER['PHP_AUTH_DIGEST'];
-
-	} elseif (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-		$hdr = $_SERVER['HTTP_AUTHORIZATION'];
-
-	} elseif (isset($_ENV['PHP_AUTH_DIGEST'])) {
-		$hdr = $_ENV['PHP_AUTH_DIGEST'];
-
-	} else {
-		$hdr = null;
-	}
-
-	debug('Authentication header: ' . $hdr);
-	$digest = substr($hdr,0,7) == 'Digest '
-		?  substr($hdr, strpos($hdr, ' ') + 1)
-		: $hdr;
-
-	$stale = false;
-
-	// is the user trying to log in?
-	if ($wait && ! is_null($digest) && $user_authenticated === false) {
-		debug('Digest headers: ' . $digest);
-		$hdr = array();
-
-		// decode the Digest authentication headers
-		preg_match_all('/(\w+)=(?:"([^"]+)"|([^\s,]+))/', $digest, $mtx, PREG_SET_ORDER);
-
-		foreach ($mtx as $m)
-			$hdr[$m[1]] = $m[2] ? $m[2] : $m[3];
-		debug($hdr, 'Parsed digest headers:');
-
-		if (isset($_SESSION['uniqid']) && $hdr['nonce'] != $_SESSION['uniqid']) {
-			$stale = true;
-			unset($_SESSION['uniqid']);
-		}
-
-		if (! isset($_SESSION['failures']))
-			$_SESSION['failures'] = 0;
-
-		if ($profile['auth_username'] == $hdr['username'] && ! $stale) {
-
-			// the entity body should always be null in this case
-			$entity_body = '';
-			$a1 = strtolower($profile['auth_password']);
-			$a2 = $hdr['qop'] == 'auth-int'
-				? md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'], md5($entity_body))))
-				: md5(implode(':', array($_SERVER['REQUEST_METHOD'], $hdr['uri'])));
-			$ok = md5(implode(':', array($a1, $hdr['nonce'], $hdr['nc'], $hdr['cnonce'], $hdr['qop'], $a2)));
-
-			// successful login!
-			if ($hdr['response'] == $ok) {
-				debug('Authentication successful');
-				debug('User session is: ' . session_id());
-				$_SESSION['auth_username'] = $hdr['username'];
-				$_SESSION['auth_url'] = $profile['idp_url'];
-				$user_authenticated = true;
-
-			// too many failures
-			} elseif (strcmp($hdr['nc'], 4) > 0 || $_SESSION['failures'] > 4) {
-				debug('Too many password failures');
-				error_get($return_to, 'Too many password failures. Double check your authentication realm. You must restart your browser to try again.');
-
-			// failed login
-			} else {
-				$_SESSION['failures']++;
-				debug('Login failed: ' . $hdr['response'] . ' != ' . $ok);
-				debug('Fail count: ' . $_SESSION['failures']);
-			}
-		}
-
-	} elseif ($wait && is_null($digest) && $user_authenticated === false && isset($_SESSION['uniqid'])) {
-		error_500('Missing expected authorization header.');
-	}
-
-	// if the user is not logged in, send the login headers
-	if ($user_authenticated === false || $identity != $_SESSION['auth_url']) {
+	// if the user is not logged in, transfer to the authorization mode
+	if ($profile['authorized'] === false || $identity != $_SESSION['auth_url']) {
 		// users can only be logged in to one url at a time
 		$_SESSION['auth_username'] = null;
 		$_SESSION['auth_url'] = null;
 
 		if ($wait) {
-			$uid = uniqid(mt_rand(1,9));
-			$_SESSION['uniqid'] = $uid;
+			$_SESSION['cancel_auth_url'] = $return_to;
+			$_SESSION['post_auth_url'] = $profile['req_url'];
 
-			debug('Prompting user to log in. Stale? ' . $stale);
-			header('HTTP/1.0 401 Unauthorized');
-			header(sprintf('WWW-Authenticate: Digest qop="auth-int, auth", realm="%s", domain="%s", nonce="%s", opaque="%s", stale="%s", algorithm="MD5"', $profile['auth_realm'], $profile['auth_domain'], $uid, md5($profile['auth_realm']), $stale ? 'true' : 'false'));
-			$q = strpos($return_to, '?') ? '&' : '?';
-			wrap_refresh($return_to . $q . 'openid.mode=cancel');
+			debug('Transferring to authorization mode.');
+			debug('Cancel URL: ' . $_SESSION['cancel_auth_url']);
+			debug('Post URL: ' . $_SESSION['post_auth_url']);
 
+			$q = strpos($profile['idp_url'], '?') ? '&' : '?';
+			wrap_refresh($profile['idp_url'] . $q . 'openid.mode=authorize');
 		} else {
 			$keys['user_setup_url'] = $profile['idp_url'];
 		}
 
 	// the user is logged in
 	} else {
+		// remove the refresh URLs if set
+		unset($_SESSION['cancel_auth_url']);
+		unset($_SESSION['post_auth_url']);
+
 		// check the assoc handle
 		list($shared_secret, $expires) = secret($assoc_handle);
 		if ($shared_secret == false || (is_numeric($expires) && $expires < time())) {
@@ -448,11 +480,11 @@ function error_mode () {
 
 
 function id_res_mode () {
-	global $profile, $user_authenticated;
+	global $profile;
 
 	user_session();
 
-	if ($user_authenticated)
+	if ($profile['authorized'])
 		wrap_html('You are logged in as ' . $_SESSION['auth_username']);
 
 	wrap_html('You are not logged in');
@@ -460,11 +492,11 @@ function id_res_mode () {
 
 
 function login_mode () {
-	global $profile, $user_authenticated;
+	global $profile;
 
 	user_session();
 
-	if ($user_authenticated)
+	if ($profile['authorized'])
 		id_res_mode();
 
 	$keys = array(
@@ -478,11 +510,11 @@ function login_mode () {
 
 
 function logout_mode () {
-	global $profile, $user_authenticated;
+	global $profile;
 
 	user_session();
 
-	if (! $user_authenticated)
+	if (! $profile['authorized'])
 		wrap_html('You were not logged in');
 
 	$_SESSION = array();
@@ -495,7 +527,7 @@ function logout_mode () {
 
 
 function no_mode () {
-	global $profile, $user_authenticated;
+	global $profile;
 
 	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>Server: ' . $profile['idp_url'] . '<br/>Realm: ' . $profile['php_realm']);
 }
@@ -804,17 +836,17 @@ function sys_get_temp_dir () {
 
 
 function user_session () {
-	global $proto, $profile, $user_authenticated;
+	global $proto, $profile;
 
 	session_name('phpMyID_Server');
 	@session_start();
 
-	$user_authenticated = (isset($_SESSION['auth_username'])
+	$profile['authorized'] = (isset($_SESSION['auth_username'])
 			    && $_SESSION['auth_username'] == $profile['auth_username'])
 			? true
 			: false;
 
-	debug('Started user session: ' . session_id() . ' Auth? ' . $user_authenticated);
+	debug('Started user session: ' . session_id() . ' Auth? ' . $profile['authorized']);
 }
 
 
@@ -896,7 +928,6 @@ function x_or ($a, $b) {
 
 // Do a check to be sure everything is set up correctly
 self_check();
-$user_authenticated = false;
 
 
 // Set any remaining profile values
@@ -914,13 +945,6 @@ if (! array_key_exists('idp_url', $profile))
 			      $port,
 			      $_SERVER['PHP_SELF']);
 
-if (! array_key_exists('req_url', $profile))
-	$profile['req_url'] = sprintf("%s://%s%s%s",
-			      $proto,
-			      $_SERVER['HTTP_HOST'],
-			      $port,
-			      $_SERVER["REQUEST_URI"]);
-
 if (! array_key_exists('auth_domain', $profile))
 	$profile['auth_domain'] = $profile['req_url'] . ' ' . $profile['idp_url'];
 
@@ -933,7 +957,18 @@ if (! array_key_exists('lifetime', $profile))
 if (! array_key_exists('logfile', $profile))
 	$profile['logfile'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $profile['auth_realm'] . '.debug.log';
 
+
+// These are used internally and cannot be overridden
+$profile['authorized'] = false;
+
 $profile['php_realm'] = $profile['auth_realm'] . (ini_get('safe_mode') ? '-' . getmyuid() : '');
+
+$profile['req_url'] = sprintf("%s://%s%s%s",
+		      $proto,
+		      $_SERVER['HTTP_HOST'],
+		      $port,
+		      $_SERVER["REQUEST_URI"]);
+
 
 
 // Decide which runmode, based on user request or default

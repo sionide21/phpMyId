@@ -184,12 +184,14 @@ TROUBLESHOOTING
    phpMyID must be able to read http request headers which are only available if
    PHP is running as a webserver module. If you are using PHP in CGI mode, you
    must convert the HTTP 'Authorization' header into an environment variable
-   that can then be used to perform the authorization.
+   ("PHP_AUTH_DIGEST") or query parameter ("auth") that can then be used to
+   perform the authorization.
 
-   If you are using Apache, the included 'htaccess' file contains a mod_rewrite
-   directive that can be used to set the necessary variable. If you need to use
-   this, it is recommended that you place phpMyID in its own directory, isolated
-   from the rest of your web code.
+   If you are using Apache, the included 'htaccess' file contains three examples
+   of how you can use mod_rewrite or mod_setenvif directives to to set the
+   necessary variable. If you need to use this technique, it is recommended
+   that you place phpMyID in its own directory, isolated from the rest of your
+   web site.
 
 
 *) Turning on the Debug Log
