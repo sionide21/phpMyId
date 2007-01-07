@@ -401,6 +401,8 @@ function checkid ( $wait ) {
 		$_SESSION['auth_url'] = null;
 
 		if ($wait) {
+			unset($_SESSION['uniqid']);
+
 			$_SESSION['cancel_auth_url'] = $return_to;
 			$_SESSION['post_auth_url'] = $profile['req_url'];
 
