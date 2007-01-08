@@ -6,7 +6,7 @@
  * (c) 2006-2007
  * http://siege.org/projects/phpMyID
  *
- * Version: 0.4
+ * Version: 0.5
  *
  * This code is licensed under the GNU General Public License
  * http://www.gnu.org/licenses/gpl.html
@@ -818,7 +818,7 @@ function sha1_20 ($v) {
 }
 
 
-if (! function_exists('sys_get_temp_dir')) {
+if (! function_exists('sys_get_temp_dir') && ini_get('open_basedir') == false) {
 function sys_get_temp_dir () {
 	$keys = array('TMP', 'TMPDIR', 'TEMP');
 	foreach ($keys as $key) {
@@ -833,6 +833,10 @@ function sys_get_temp_dir () {
 		return realpath($dir);
 	}
 
+	return realpath(dirname(__FILE__));
+}
+}} elseif (! function_exists('sys_get_temp_dir')) {
+function sys_get_temp_dir () {
 	return realpath(dirname(__FILE__));
 }}
 
@@ -947,6 +951,12 @@ if (! array_key_exists('idp_url', $profile))
 			      $port,
 			      $_SERVER['PHP_SELF']);
 
+$profile['req_url'] = sprintf("%s://%s%s%s",
+		      $proto,
+		      $_SERVER['HTTP_HOST'],
+		      $port,
+		      $_SERVER["REQUEST_URI"]);
+
 if (! array_key_exists('auth_domain', $profile))
 	$profile['auth_domain'] = $profile['req_url'] . ' ' . $profile['idp_url'];
 
@@ -964,13 +974,6 @@ if (! array_key_exists('logfile', $profile))
 $profile['authorized'] = false;
 
 $profile['php_realm'] = $profile['auth_realm'] . (ini_get('safe_mode') ? '-' . getmyuid() : '');
-
-$profile['req_url'] = sprintf("%s://%s%s%s",
-		      $proto,
-		      $_SERVER['HTTP_HOST'],
-		      $port,
-		      $_SERVER["REQUEST_URI"]);
-
 
 
 // Decide which runmode, based on user request or default
