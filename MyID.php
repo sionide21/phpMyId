@@ -834,7 +834,6 @@ function sys_get_temp_dir () {
 	}
 
 	return realpath(dirname(__FILE__));
-}
 }} elseif (! function_exists('sys_get_temp_dir')) {
 function sys_get_temp_dir () {
 	return realpath(dirname(__FILE__));
