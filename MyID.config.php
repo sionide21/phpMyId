@@ -1,14 +1,23 @@
 <?php
-/* phpMyID - A standalone, single user, OpenID Identity Provider
+// IF YOU HAVE NOT DONE SO, PLEASE READ THE README FILE FOR DIRECTIONS!!!
+
+/**
+ * phpMyID - A standalone, single user, OpenID Identity Provider
  *
- * by: CJ Niemira <siege (at) siege (dot) org>
- * (c) 2006-2007
- * http://siege.org/projects/phpMyID
- * Config File Version 2
- *
- * IF YOU HAVE NOT DONE SO, PLEASE READ THE README FILE FOR DIRECTIONS!!!
+ * @package phpMyID
+ * @author CJ Niemira <siege (at) siege (dot) org>
+ * @copyright 2006-2007
+ * @license http://www.gnu.org/licenses/gpl.html GNU Public License
+ * @url http://siege.org/projects/phpMyID
+ * @version 2
  */
 
+
+/**
+ * User profile
+ * @name $profile
+ * @global array $GLOBALS['profile']
+ */
 $GLOBALS['profile'] = array(
 	'auth_username'	=> 	'test',
 	'auth_password' =>	'37fa04faebe5249023ed1f6cc867329b',
@@ -18,6 +27,11 @@ $GLOBALS['profile'] = array(
 #	'logfile'	=>	'/tmp/phpMyID.debug.log'
 );
 
+/**
+ * Simple Registration Extension
+ * @name $sreg
+ * @global array $GLOBALS['sreg']
+ */
 $GLOBALS['sreg'] = array (
 #	'nickname'		=> 'Joe',
 #	'email'			=> 'joe@example.com',
@@ -30,6 +44,5 @@ $GLOBALS['sreg'] = array (
 #	'timezone'		=> 'America/New_York'
 );
 
-/******************************************************************************/
 include('MyID.php');
 ?>

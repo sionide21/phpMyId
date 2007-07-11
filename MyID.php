@@ -4,6 +4,7 @@
 /**
  * phpMyID - A standalone, single user, OpenID Identity Provider
  *
+ * @package phpMyID
  * @author CJ Niemira <siege (at) siege (dot) org>
  * @copyright 2006-2007
  * @license http://www.gnu.org/licenses/gpl.html GNU Public License
@@ -23,8 +24,8 @@ define('PHPMYID_STARTED', true);
 
 /**
  * List the known types and modes
- * @global array $GLOBALS['known']
  * @name $known
+ * @global array $GLOBALS['known']
  */
 $GLOBALS['known'] = array(
 	'assoc_types'	=> array('HMAC-SHA1'),
@@ -49,15 +50,15 @@ $GLOBALS['known'] = array(
 
 /**
  * Defined by OpenID spec
- * @global integer $GLOBALS['g']
  * @name $g
+ * @global integer $GLOBALS['g']
  */
 $GLOBALS['g'] = 2;
 
 /**
  * Defined by OpenID spec
- * @global integer $GLOBALS['p']
  * @name $p
+ * @global integer $GLOBALS['p']
  */
 $GLOBALS['p'] = '155172898181473697471232257763715539915724801966915404479707' .
 '7953140576293785419175806512274236981889937278161526466314385615958256881888' .
@@ -885,8 +886,8 @@ function secret ( $handle ) {
 
 /**
  * Do an internal self check
- * @global $profile
- * @global $sreg
+ * @global array $profile
+ * @global array $sreg
  */
 function self_check () {
 	global $profile, $sreg;
@@ -965,8 +966,8 @@ function sys_get_temp_dir () {
 
 /**
  * Create a user session
- * @global $profile
- * @global $proto
+ * @global array $profile
+ * @global array $proto
  */
 function user_session () {
 	global $proto, $profile;
@@ -1086,15 +1087,22 @@ function x_or ($a, $b) {
 self_check();
 
 
-// Determine the HTTP request port
+/**
+ * Determine the HTTP request port
+ * @name $port
+ * @global integer $GLOBALS['port']
+ */
 $GLOBALS['port'] = ((isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == 'on' && $_SERVER['SERVER_PORT'] == 443)
 	  || $_SERVER['SERVER_PORT'] == 80)
 		? ''
 		: ':' . $_SERVER['SERVER_PORT'];
 
-// Determine the HTTP request protocol
+/**
+ * Determine the HTTP request protocol
+ * @name $proto
+ * @global string $GLOBALS['proto']
+ */
 $GLOBALS['proto'] = (isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == 'on') ? 'https' : 'http';
-
 
 // Set the authorization state - DO NOT OVERRIDE
 $profile['authorized'] = false;
