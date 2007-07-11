@@ -917,6 +917,9 @@ function self_check () {
 			error_500("'$key' is missing from your profile.");
 	}
 
+	if (! is_writable(ini_get('session.save_path')))
+		error_500("PHP cannot save sessions.");
+
 	if (! isset($sreg) || ! is_array($sreg))
 		$sreg = array();
 }
