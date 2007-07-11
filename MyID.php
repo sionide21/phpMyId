@@ -15,7 +15,8 @@
 /**
  * Set the internal encoding
  */
-mb_internal_encoding("iso-8859-1");
+if (function_exists('mb_internal_encoding'))
+	mb_internal_encoding("iso-8859-1");
 
 /**
  * Set a constant to indicate that phpMyID is running
@@ -427,8 +428,12 @@ function checkid ( $wait ) {
 
 		// if I can't verify the assoc_handle, or if it's expired
 		if ($shared_secret == false || (is_numeric($expires) && $expires >= time())) {
-			if ($assoc_handle != null)
+			debug("Session expired or missing key: $expires > " . time());
+			if ($assoc_handle != null) {
 				$keys['invalidate_handle'] = $assoc_handle;
+				destroy_assoc_handle($assoc_handle);
+			}
+
 			$lifetime = time() + $profile['lifetime'];
 			list ($assoc_handle, $shared_secret) = new_assoc($lifetime);
 		}
@@ -879,7 +884,7 @@ function secret ( $handle ) {
 		session_decode($dat);
 	}
 
-	debug("Session expires in: '$expiration', key length: " . strlen($secret));
+	debug("Session expires at: '$expiration', key length: " . strlen($secret));
 	return array($secret, $expiration);
 }
 
