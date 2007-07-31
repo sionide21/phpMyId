@@ -12,11 +12,6 @@
  * @version 0.6
  */
 
-/**
- * Set the internal encoding
- */
-if (function_exists('mb_internal_encoding'))
-	mb_internal_encoding("iso-8859-1");
 
 /**
  * Set a constant to indicate that phpMyID is running
@@ -332,7 +327,7 @@ function check_authentication_mode () {
 	list ($shared_secret, $expires) = secret($assoc_handle);
 
 	// if I can't verify the assoc_handle, or if it's expired
-	if ($shared_secret == false || (is_numeric($expires) && $expires >= time())) {
+	if ($shared_secret == false || (is_numeric($expires) && $expires < time())) {
 		$keys['is_valid'] = 'false';
 
 	} else {
@@ -427,8 +422,8 @@ function checkid ( $wait ) {
 		list($shared_secret, $expires) = secret($assoc_handle);
 
 		// if I can't verify the assoc_handle, or if it's expired
-		if ($shared_secret == false || (is_numeric($expires) && $expires >= time())) {
-			debug("Session expired or missing key: $expires > " . time());
+		if ($shared_secret == false || (is_numeric($expires) && $expires < time())) {
+			debug("Session expired or missing key: $expires < " . time());
 			if ($assoc_handle != null) {
 				$keys['invalidate_handle'] = $assoc_handle;
 				destroy_assoc_handle($assoc_handle);
@@ -759,7 +754,7 @@ if (! function_exists('http_build_query')) {
 function http_build_query ($array) {
 	$r = array();
 	foreach ($array as $key => $val)
-		$r[] = sprintf('%s=%s', $key, urlencode($val));
+		$r[] = sprintf('%s=%s', urlencode($key), urlencode($val));
 	return implode('&', $r);
 }}
 
@@ -994,18 +989,21 @@ function user_session () {
 
 /**
  * Return HTML
+ * @global string $charset
  * @param string $message
  */
 function wrap_html ( $message ) {
-	global $profile;
+	global $charset, $profile;
 
-	header('Content-Type: text/html; charset=UTF-8');
+	header('Content-Type: text/html; charset=' . $charset);
 	echo '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
 <head>
 <title>phpMyID</title>
 <link rel="openid.server" href="' . $profile['req_url'] . '" />
 <link rel="openid.delegate" href="' . $profile['idp_url'] . '" />
+<meta name="charset" content="' . $charset . '" />
+<meta name="robots" content="noindex,nofollow" />
 </head>
 <body>
 <p>' . $message . '</p>
@@ -1019,11 +1017,14 @@ function wrap_html ( $message ) {
 
 /**
  * Return a key-value pair in plain text
+ * @global string $charset
  * @param array $keys
  */
 function wrap_kv ( $keys ) {
+	global $charset;
+
 	debug($keys, 'Wrapped key/vals');
-	header('Content-Type: text/plain; charset=UTF-8');
+	header('Content-Type: text/plain; charset=' . $charset);
 	foreach ($keys as $key => $value)
 		printf("%s:%s\n", $key, $value);
 
@@ -1049,10 +1050,13 @@ function wrap_location ($url, $keys) {
 
 /**
  * Return an HTML refresh
+ * @global string $charset
  * @param string $url
  */
 function wrap_refresh ($url) {
-	header('Content-Type: text/html; charset=UTF-8');
+	global $charset;
+
+	header('Content-Type: text/html; charset=' . $charset);
 	echo '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
 <head>
@@ -1090,6 +1094,13 @@ function x_or ($a, $b) {
 /*
  * App Initialization
  */
+
+// Determine the charset to use
+$GLOBALS['charset'] = 'iso-8859-1';
+
+// Set the internal encoding
+if (function_exists('mb_internal_encoding'))
+	mb_internal_encoding($charset);
 
 // Do a check to be sure everything is set up correctly
 self_check();
@@ -1141,9 +1152,12 @@ if (! array_key_exists('auth_realm', $profile))
 // Determine the realm for digest authentication - DO NOT OVERRIDE
 $profile['php_realm'] = $profile['auth_realm'] . (ini_get('safe_mode') ? '-' . getmyuid() : '');
 
-// Set a default lifetime
-if (! array_key_exists('lifetime', $profile))
-	$profile['lifetime'] = ((session_cache_expire() * 60) - 10);
+// Set a default lifetime - the lesser of GC and cache time
+if (! array_key_exists('lifetime', $profile)) {
+	$sce = session_cache_expire() * 60;
+	$gcm = ini_get('session.gc_maxlifetime');
+	$profile['lifetime'] = $sce < $gcm ? $sce : $gcm;
+}
 
 // Set a default log file
 if (! array_key_exists('logfile', $profile))
