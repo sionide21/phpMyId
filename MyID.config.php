@@ -23,6 +23,7 @@ $GLOBALS['profile'] = array(
 	'auth_password' =>	'37fa04faebe5249023ed1f6cc867329b',
 	'auth_realm'	=>	'phpMyID',
 
+#	'allow_test'	=> 	true,
 #	'debug'		=>	false,
 #	'logfile'	=>	'/tmp/phpMyID.debug.log'
 );

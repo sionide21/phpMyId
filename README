@@ -10,8 +10,7 @@ Provider for OpenID authentication. It comprises a single PHP script that can be
 used by one individual to run their own personal OpenID "IdP."
 
 This program requires no external libraries, and has very minimal requirements.
-It should run on any PHP server (v4.2+), and as long as it built without
-intentionally disabling the bcmath functions, it should support 'Smart Mode.'
+It should run on any PHP server (v4.2+), and can support OpenID in 'Smart Mode.'
 This program caches all data using built-in PHP session handling, so it requires
 no database, and no explicit write access to the file system.
 
@@ -41,9 +40,12 @@ you use a server that you own and control.
    can be installed in a number of ways. The two files you will be uploading
    are:
 
-   MyID.php - The application library. You can rename it if you like.
-   MyID.config.php - This is the file you'll be visiting in your browser.
-                     It will also contain your user profile.
+   MyID.php		The application library
+			You can rename it if you like
+
+   MyID.config.php	This is the file you'll be visiting in your browser
+			It contains your user profile, creds, and options
+			You can rename it too
 
    Three suggestions for installation are:
 
@@ -84,8 +86,9 @@ you use a server that you own and control.
 
    If you're going to want to change this to some custom value (again, pointless
    to do so, but if it makes you happy, you can) just edit the "auth_realm" key
-   to read whatever you want, but remember to append the number after "phpMyID"
-   (including the hyphen) in the default "Realm" (if there is one).
+   to read whatever you want. Remember, however, that you need to double check
+   your realm value by visiting MyID.config.php in a browser after you make the
+   change (and upload it). 
 
 
 5) Now you get to decide your login name and password. This is what you will use

@@ -117,7 +117,7 @@ function associate_mode () {
 	);
 
 	// If I can't handle bigmath, default to plaintext sessions
-	if (in_array($session_type, $known['bigmath_types']) && ! extension_loaded('bcmath'))
+	if (in_array($session_type, $known['bigmath_types']) && $profile['use_bigmath'] === false)
 		$session_type = null;
 
 	// Add response keys based on the session type
@@ -128,9 +128,9 @@ function associate_mode () {
 
 			// Compute the Diffie-Hellman stuff
 			$private_key = random($dh_modulus);
-			$public_key = bcpowmod($dh_gen, $private_key, $dh_modulus);
+			$public_key = bmpowmod($dh_gen, $private_key, $dh_modulus);
 			$remote_key = long(base64_decode($dh_consumer_public));
-			$ss = bcpowmod($remote_key, $private_key, $dh_modulus);
+			$ss = bmpowmod($remote_key, $private_key, $dh_modulus);
 
 			$keys['assoc_handle'] = $assoc_handle;
 			$keys['session_type'] = $session_type;
@@ -560,7 +560,7 @@ function logout_mode () {
 function no_mode () {
 	global $profile;
 
-	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>Server: <b>' . $profile['idp_url'] . '</b><br/>Realm: <b>' . $profile['php_realm'] . '</b><br/><a href="' . $profile['idp_url'] . '?openid.mode=login">Login</a>');
+	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>Server: <b>' . $profile['idp_url'] . '</b><br/>Realm: <b>' . $profile['php_realm'] . '</b><br/><a href="' . $profile['idp_url'] . '?openid.mode=login">Login</a>' . ($profile['allow_test'] === true ? ' | <a href="' . $profile['idp_url'] . '?openid.mode=test">Test</a>' : null));
 }
 
 
@@ -569,6 +569,116 @@ function no_mode () {
  * @global array $profile
  */
 function test_mode () {
+	global $profile, $p, $g;
+
+	if ($profile['allow_test'] != true)
+		error_403();
+
+	@ini_set('max_execution_time', 180);
+
+	$test_expire = time() + 120;
+	$test_ss_enc = 'W7hvmld2yEYdDb0fHfSkKhQX+PM=';
+	$test_ss = base64_decode($test_ss_enc);
+	$test_token = "alpha:bravo\ncharlie:delta\necho:foxtrot";
+	$test_server_private = '11263846781670293092494395517924811173145217135753406847875706165886322533899689335716152496005807017390233667003995430954419468996805220211293016296351031812246187748601293733816011832462964410766956326501185504714561648498549481477143603650090931135412673422192550825523386522507656442905243832471167330268';
+	$test_client_public = base64_decode('AL63zqI5a5p8HdXZF5hFu8p+P9GOb816HcHuvNOhqrgkKdA3fO4XEzmldlb37nv3+xqMBgWj6gxT7vfuFerEZLBvuWyVvR7IOGZmx0BAByoq3fxYd3Fpe2Coxngs015vK37otmH8e83YyyGo5Qua/NAf13yz1PVuJ5Ctk7E+YdVc');
+
+	$res = array();
+
+	// bcmath
+	$res['bcmath'] = extension_loaded('bcmath')
+		? 'pass' : 'warn - not loaded';
+
+	// gmp
+	if ($profile['allow_gmp']) {
+		$res['gmp'] = extension_loaded('gmp')
+		? 'pass' : 'warn - not loaded';
+	} else {
+		$res['gmp'] = 'pass - n/a';
+	}
+
+	// sys_get_temp_dir
+	$check = sys_get_temp_dir();
+	$res['sys_get_temp_dir'] = is_writable($check)
+		? 'pass' : "warn - '$check' is not writable";
+
+	// session & new_assoc
+	user_session();
+	list($test_assoc, $test_new_ss) = new_assoc($test_expire);
+	$res['session'] = ($test_assoc != session_id())
+		? 'pass' : 'fail';
+
+	// secret
+	@session_unregister('shared_secret');
+	list($check, $check2) = secret($test_assoc);
+	$res['secret'] = ($check == $test_new_ss)
+		? 'pass' : 'fail';
+
+	// expire
+	$res['expire'] = ($check2 <= $test_expire)
+		? 'pass' : 'fail';
+
+	// base64
+	$res['base64'] = (base64_encode($test_ss) == $test_ss_enc)
+		? 'pass' : 'fail';
+
+	// hmac
+	$test_sig = base64_decode('/VXgHvZAOdoz/OTa5+XJXzSGhjs=');
+	$check = hmac($test_ss, $test_token);
+	$res['hmac'] = ($check == $test_sig)
+		? 'pass' : sprintf("fail - '%s'", base64_encode($check));
+
+	if ($profile['use_bigmath']) {
+		// bigmath powmod
+		$test_server_public = '102773334773637418574009974502372885384288396853657336911033649141556441102566075470916498748591002884433213640712303846640842555822818660704173387461364443541327856226098159843042567251113889701110175072389560896826887426539315893475252988846151505416694218615764823146765717947374855806613410142231092856731';
+		$check = bmpowmod($g, $test_server_private, $p);
+		$res['bmpowmod-1'] = ($check == $test_server_public)
+			? 'pass' : sprintf("fail - '%s'", $check);
+
+		// long
+		$test_client_long = '133926731803116519408547886573524294471756220428015419404483437186057383311250738749035616354107518232016420809434801736658109316293127101479053449990587221774635063166689561125137927607200322073086097478667514042144489248048756916881344442393090205172004842481037581607299263456852036730858519133859409417564';
+		$res['long'] = (long($test_client_public) == $test_client_long)
+			? 'pass' : 'fail';
+
+		// bigmath powmod 2
+		$test_client_share = '19333275433742428703546496981182797556056709274486796259858099992516081822015362253491867310832140733686713353304595602619444380387600756677924791671971324290032515367930532292542300647858206600215875069588627551090223949962823532134061941805446571307168890255137575975911397744471376862555181588554632928402';
+		$check = bmpowmod($test_client_long, $test_server_private, $p);
+		$res['bmpowmod-2'] = ($check == $test_client_share)
+			? 'pass' : sprintf("fail - '%s'", $check);
+
+		// bin
+		$test_client_mac_s1 = base64_decode('G4gQQkYM6QmAzhKbVKSBahFesPL0nL3F2MREVwEtnVRRYI0ifl9zmPklwTcvURt3QTiGBd+9Dn3ESLk5qka6IO5xnILcIoBT8nnGVPiOZvTygfuzKp4tQ2mXuIATJoa7oXRGmBWtlSdFapH5Zt6NJj4B83XF/jzZiRwdYuK4HJI=');
+		$check = bin($test_client_share);
+		$res['bin'] = ($check == $test_client_mac_s1)
+			? 'pass' : sprintf("fail - '%s'", base64_encode($check));
+
+	} else {
+		$res['bigmath'] = 'fail - big math functions are not available.';
+	}
+
+	// sha1_20
+	$test_client_mac_s1 = base64_decode('G4gQQkYM6QmAzhKbVKSBahFesPL0nL3F2MREVwEtnVRRYI0ifl9zmPklwTcvURt3QTiGBd+9Dn3ESLk5qka6IO5xnILcIoBT8nnGVPiOZvTygfuzKp4tQ2mXuIATJoa7oXRGmBWtlSdFapH5Zt6NJj4B83XF/jzZiRwdYuK4HJI=');
+	$test_client_mac_s2 = base64_decode('0Mb2t9d/HvAZyuhbARJPYdx3+v4=');
+	$check = sha1_20($test_client_mac_s1);
+	$res['sha1_20'] = ($check == $test_client_mac_s2)
+		? 'pass' : sprintf("fail - '%s'", base64_encode($check));
+
+	// x_or
+	$test_client_mac_s3 = base64_decode('i36ZLYAJ1rYEx1VEHObrS8hgAg0=');
+	$check = x_or($test_client_mac_s2, $test_ss);
+	$res['x_or'] = ($check == $test_client_mac_s3)
+		? 'pass' : sprintf("fail - '%s'", base64_encode($check));
+
+	$out = "<table border=1 cellpadding=4>\n";
+	foreach ($res as $test => $stat) {
+		$code = substr($stat, 0, 4);
+		$color = ($code == 'pass') ? '#9f9'
+			: (($code == 'warn') ? '#ff9' : '#f99');
+		$out .= sprintf("<tr><th>%s</th><td style='background:%s'>%s</td></tr>\n", $test, $color, $stat);
+	}
+	$out .= "</table>";
+
+	wrap_html( $out );
 }
 
 
@@ -589,26 +699,307 @@ function append_openid ($array) {
 	return $r;
 }
 
-if (! function_exists('bcpowmod')) {
 /**
- * Create 'bcpowmod'
- * @param integer $value
- * @param integer $exponent
- * @param integer $mod 
- * @return integer
- * @url https://www.siege.org/forum/viewtopic.php?pid=154#p154 Borrowed from
+ * Create a big math addition function
+ * @param string $l
+ * @param string $r
+ * @return string
+ * @url http://www.icosaedro.it/bigint Inspired by
  */
-function bcpowmod ($value, $exponent, $mod) {
-	$r = 1;
-	while (true) {
-		if (bcmod($exponent, 2) == "1")
-			break;
-		if (($exponent = bcdiv($exponent, 2)) == '0')
-			break;
-		$value = bcmod(bcmul($value, $value), $mod);
+function bmadd($l, $r) {
+	if (function_exists('bcadd'))
+		return bcadd($l, $r);
+
+	global $profile;
+	if ($profile['use_gmp'])
+		return gmp_strval(gmp_add($l, $r));
+
+	$l = strval($l); $r = strval($r);
+	$ll = strlen($l); $rl = strlen($r);
+	if ($ll < $rl) {
+		$l = str_repeat("0", $rl-$ll) . $l;
+		$o = $rl;
+
+	} elseif ( $ll > $rl ) {
+		$r = str_repeat("0", $ll-$rl) . $r;
+		$o = $ll;
+
+	} else {
+		$o = $ll;
 	}
+
+	$v = '';
+	$carry = 0;
+
+	for ($i = $o-1; $i >= 0; $i--) {
+		$d = (int)$l[$i] + (int)$r[$i] + $carry;
+		if ($d <= 9) {
+			$carry = 0;
+
+		} else {
+			$carry = 1;
+			$d -= 10;
+		}
+		$v = (string) $d . $v;
+	}
+
+	if ($carry > 0)
+		$v = "1" . $v;
+
+	return $v;
+}
+
+/**
+ * Create a big math comparison function
+ * @param string $l
+ * @param string $r
+ * @return string
+ */
+function bmcomp($l, $r) {
+	if (function_exists('bccomp'))
+		return bccomp($l, $r);
+
+	global $profile;
+	if ($profile['use_gmp'])
+		return gmp_strval(gmp_cmp($l, $r));
+
+	$l = strval($l); $r = strval($r);
+	$ll = strlen($l); $lr = strlen($r);
+	if ($ll != $lr)
+		return ($ll > $lr) ? 1 : -1;
+
+	return strcmp($l, $r);
+}
+
+/**
+ * Create a big math division function
+ * @param string $l
+ * @param string $r
+ * @param int $z
+ * @return string
+ * @url http://www.icosaedro.it/bigint Inspired by
+ */
+function bmdiv($l, $r, $z = 0) {
+	if (function_exists('bcdiv'))
+		return ($z == 0) ? bcdiv($l, $r) : bcmod($l, $r);
+
+	global $profile;
+	if ($profile['use_gmp'])
+		return gmp_strval(($z == 0) ? gmp_div_q($l, $r) : gmp_mod($l, $r));
+
+	$l = strval($l); $r = strval($r);
+	$v = '0';
+
+	while (true) {
+		if( bmcomp($l, $r) < 0 )
+			break;
+
+		$delta = strlen($l) - strlen($r);
+		if ($delta >= 1) {
+			$zeroes = str_repeat("0", $delta);
+			$r2 = $r . $zeroes;
+
+			if (strcmp($l, $r2) >= 0) {
+				$v = bmadd($v, "1" . $zeroes);
+				$l = bmsub($l, $r2);
+
+			} else {
+				$zeroes = str_repeat("0", $delta - 1);
+				$v = bmadd($v, "1" . $zeroes);
+				$l = bmsub($l, $r . $zeroes);
+			}
+
+		} else {
+			$l = bmsub($l, $r);
+			$v = bmadd($v, "1");
+		}
+	}
+
+	return ($z == 0) ? $v : $l;
+}
+
+/**
+ * Create a big math multiplication function
+ * @param string $l
+ * @param string $r
+ * @return string
+ * @url http://www.icosaedro.it/bigint Inspired by
+ */
+function bmmul($l, $r) {
+	if (function_exists('bcmul'))
+		return bcmul($l, $r);
+
+	global $profile;
+	if ($profile['use_gmp'])
+		return gmp_strval(gmp_mul($l, $r));
+
+	$l = strval($l); $r = strval($r);
+
+	$v = '0';
+	$z = '';
+
+	for( $i = strlen($r)-1; $i >= 0; $i-- ){
+		$bd = (int) $r[$i];
+		$carry = 0;
+		$p = "";
+		for( $j = strlen($l)-1; $j >= 0; $j-- ){
+			$ad = (int) $l[$j];
+			$pd = $ad * $bd + $carry;
+			if( $pd <= 9 ){
+				$carry = 0;
+			} else {
+				$carry = (int) ($pd / 10);
+				$pd = $pd % 10;
+			}
+			$p = (string) $pd . $p;
+		}
+		if( $carry > 0 )
+			$p = (string) $carry . $p;
+		$p = $p . $z;
+		$z .= "0";
+		$v = bmadd($v, $p);
+	}
+
+	return $v;
+}
+
+/**
+ * Create a big math modulus function
+ * @param string $value
+ * @param string $mod 
+ * @return string
+ */
+function bmmod( $value, $mod ) {
+	if (function_exists('bcmod'))
+		return bcmod($value, $mod);
+
+	global $profile;
+	if ($profile['use_gmp'])
+		return gmp_strval(gmp_mod($value, $mod));
+
+	$r = bmdiv($value, $mod, 1);
 	return $r;
-}}
+}
+
+/**
+ * Create a big math power function
+ * @param string $value
+ * @param string $exponent
+ * @return string
+ */
+function bmpow ($value, $exponent) {
+	if (function_exists('bcpow'))
+		return bcpow($value, $exponent);
+
+	global $profile;
+	if ($profile['use_gmp'])
+		return gmp_strval(gmp_pow($value, $exponent));
+
+	$r = '1';
+	while ($exponent) {
+		$r = bmmul($r, $value, 100);
+		$exponent--;
+	}
+	return (string)rtrim($r, '0.');
+}
+
+/**
+ * Create a big math 'powmod' function
+ * @param string $value
+ * @param string $exponent
+ * @param string $mod 
+ * @return string
+ * @url http://php.net/manual/en/function.bcpowmod.php#72704 Borrowed from
+ */
+function bmpowmod ($value, $exponent, $mod) {
+	if (function_exists('bcpowmod'))
+		return bcpowmod($value, $exponent, $mod);
+
+	global $profile;
+	if ($profile['use_gmp'])
+		return gmp_strval(gmp_powm($value, $exponent, $mod));
+
+	$r = '';
+	while ($exponent != '0') {
+		$t = bmmod($exponent, '4096');
+		$r = substr("000000000000" . decbin(intval($t)), -12) . $r;
+		$exponent = bmdiv($exponent, '4096');
+	}
+
+	$r = preg_replace("!^0+!","",$r);
+
+	if ($r == '')
+		$r = '0';
+	$value = bmmod($value, $mod);
+	$erb = strrev($r);
+	$q = '1';
+	$a[0] = $value;
+
+	for ($i = 1; $i < strlen($erb); $i++) {
+		$a[$i] = bmmod( bmmul($a[$i-1], $a[$i-1]), $mod );
+	}
+
+	for ($i = 0; $i < strlen($erb); $i++) {
+		if ($erb[$i] == "1") {
+			$q = bmmod( bmmul($q, $a[$i]), $mod );
+		}
+	}
+
+	return($q);
+}
+
+/**
+ * Create a big math subtraction function
+ * @param string $l
+ * @param string $r
+ * @return string
+ * @url http://www.icosaedro.it/bigint Inspired by
+ */
+function bmsub($l, $r) {
+	if (function_exists('bcsub'))
+		return bcsub($l, $r);
+
+	global $profile;
+	if ($profile['use_gmp'])
+		return gmp_strval(gmp_sub($l, $r));
+
+
+	$l = strval($l); $r = strval($r);
+	$ll = strlen($l); $rl = strlen($r);
+
+	if ($ll < $rl) {
+		$l = str_repeat("0", $rl-$ll) . $l;
+		$o = $rl;
+	} elseif ( $ll > $rl ) {
+		$r = str_repeat("0", $ll-$rl) . (string)$r;
+		$o = $ll;
+	} else {
+		$o = $ll;
+	}
+
+	if (strcmp($l, $r) >= 0) {
+		$sign = '';
+	} else {
+		$x = $l; $l = $r; $r = $x;
+		$sign = '-';
+	}
+
+	$v = '';
+	$carry = 0;
+
+	for ($i = $o-1; $i >= 0; $i--) {
+		$d = ($l[$i] - $r[$i]) - $carry;
+		if ($d < 0) {
+			$carry = 1;
+			$d += 10;
+		} else {
+			$carry = 0;
+		}
+		$v = (string) $d . $v;
+	}
+
+	return $sign . ltrim($v, '0');
+}
 
 
 /**
@@ -619,9 +1010,9 @@ function bcpowmod ($value, $exponent, $mod) {
  */
 function bin ($n) {
 	$bytes = array();
-	while (bccomp($n, 0) > 0) {
-		array_unshift($bytes, bcmod($n, 256));
-		$n = bcdiv($n, pow(2,8));
+	while (bmcomp($n, 0) > 0) {
+		array_unshift($bytes, bmmod($n, 256));
+		$n = bmdiv($n, bmpow(2,8));
 	}
 
 	if ($bytes && ($bytes[0] > 127))
@@ -687,6 +1078,16 @@ function destroy_assoc_handle ( $id ) {
  */
 function error_400 ( $message = 'Bad Request' ) {
 	header("HTTP/1.1 400 Bad Request");
+	wrap_html($message);
+}
+
+
+/**
+ * Return an error message to the user
+ * @param string $message
+ */
+function error_403 ( $message = 'Forbidden' ) {
+	header("HTTP/1.1 403 Forbidden");
 	wrap_html($message);
 }
 
@@ -769,8 +1170,8 @@ function long($b) {
 	$bytes = array_merge(unpack('C*', $b));
 	$n = 0;
 	foreach ($bytes as $byte) {
-		$n = bcmul($n, bcpow(2,8));
-		$n = bcadd($n, $byte);
+		$n = bmmul($n, bmpow(2,8));
+		$n = bmadd($n, $byte);
 	}
 	return $n;
 }
@@ -1094,7 +1495,6 @@ function x_or ($a, $b) {
 /*
  * App Initialization
  */
-
 // Determine the charset to use
 $GLOBALS['charset'] = 'iso-8859-1';
 
@@ -1140,6 +1540,24 @@ $profile['req_url'] = sprintf("%s://%s%s%s",
 		      $_SERVER['SERVER_NAME'],
 		      $port,
 		      $_SERVER["REQUEST_URI"]);
+
+// Set the default allowance for testing
+if (! array_key_exists('allow_test', $profile))
+	$profile['allow_test'] = false;
+
+// Set the default allowance for gmp
+if (! array_key_exists('allow_gmp', $profile))
+	$profile['allow_gmp'] = false;
+
+// Set the default force bigmath - BAD IDEA to override this
+if (! array_key_exists('force_bigmath', $profile))
+	$profile['force_bigmath'] = false;
+
+// Determine if GMP is usable
+$profile['use_gmp'] = (extension_loaded('gmp') && $profile['allow_gmp']) ? true : false;
+
+// Determine if I can perform big math functions
+$profile['use_bigmath'] = (extension_loaded('bcmath') || $profile['use_gmp'] || $profile['force_bigmath']) ? true : false;
 
 // Set a default authentication domain
 if (! array_key_exists('auth_domain', $profile))
