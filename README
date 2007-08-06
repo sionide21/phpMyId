@@ -239,28 +239,3 @@ TROUBLESHOOTING
 	?>
 
    Then upload it, hit it in your browser, get your hash, and delete it.
-
-
-
-###########
-OTHER STUFF
-###########
-Things not to complain about:
-
-MD5) I get a lot of people who think they know something about securiting
-   writing to me to complain about my using MD5, or Diffie-Hellman, or
-   whatever the heck else for encryption. My answer is "go read the specs."
-   I'm not using what I'm using because it's the most secure, I'm using it
-   because it's what I have to use.
-
-Multiple Users) Other folks like to complain that phpMyID doesn't support
-   multiple users. No kidding... wasn't really meant to. If you want a
-   high power, ultra efficient OpenID Server that people can sign up for
-   jand useses a memcached and backend database for lightning quick
-   transactions... go build your own.
-
-Digest Authentication) Yes, it's a PITA to set up, debug, troubleshoot and
-   otherwise deal with... BUT - using digest authentication allows your
-   password to be encrypted before it's sent over the Internet. Regular
-   HTTP authentication or some form-based thing would send your password
-   in plain text.

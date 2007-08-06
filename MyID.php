@@ -76,34 +76,34 @@ function associate_mode () {
 	global $g, $known, $p, $profile;
 
 	// Validate the request
-	if (! isset($_POST['openid_mode']) || $_POST['openid_mode'] != 'associate')
+	if (! isset($_REQUEST['openid_mode']) || $_REQUEST['openid_mode'] != 'associate')
 		error_400();
 
 	// Get the request options, using defaults as necessary
-	$assoc_type = (@strlen($_POST['openid_assoc_type'])
-		    && in_array($_POST['openid_assoc_type'], $known['assoc_types']))
-			? $_POST['openid_assoc_type']
+	$assoc_type = (@strlen($_REQUEST['openid_assoc_type'])
+		    && in_array($_REQUEST['openid_assoc_type'], $known['assoc_types']))
+			? $_REQUEST['openid_assoc_type']
 			: 'HMAC-SHA1';
 
-	$session_type = (@strlen($_POST['openid_session_type'])
-		      && in_array($_POST['openid_session_type'], $known['session_types']))
-			? $_POST['openid_session_type']
+	$session_type = (@strlen($_REQUEST['openid_session_type'])
+		      && in_array($_REQUEST['openid_session_type'], $known['session_types']))
+			? $_REQUEST['openid_session_type']
 			: '';
 
-	$dh_modulus = (@strlen($_POST['openid_dh_modulus']))
-		? $_POST['openid_dh_modulus']
+	$dh_modulus = (@strlen($_REQUEST['openid_dh_modulus']))
+		? long(base64_decode($_REQUEST['openid_dh_modulus']))
 		: ($session_type == 'DH-SHA1'
 			? $p
 			: null);
 
-	$dh_gen = (@strlen($_POST['openid_dh_gen']))
-		? $_POST['openid_dh_gen']
+	$dh_gen = (@strlen($_REQUEST['openid_dh_gen']))
+		? long(base64_decode($_REQUEST['openid_dh_gen']))
 		: ($session_type == 'DH-SHA1'
 			? $g
 			: null);
 
-	$dh_consumer_public = (@strlen($_POST['openid_dh_consumer_public']))
-		? $_POST['openid_dh_consumer_public']
+	$dh_consumer_public = (@strlen($_REQUEST['openid_dh_consumer_public']))
+		? $_REQUEST['openid_dh_consumer_public']
 		: ($session_type == 'DH-SHA1'
 			? error_post('dh_consumer_public was not specified')
 			: null);
@@ -180,8 +180,8 @@ function authorize_mode () {
 	} elseif (isset($_ENV['PHP_AUTH_DIGEST'])) {
 		$hdr = $_ENV['PHP_AUTH_DIGEST'];
 
-	} elseif (isset($_GET['auth'])) {
-		$hdr = stripslashes(urldecode($_GET['auth']));
+	} elseif (isset($_REQUEST['auth'])) {
+		$hdr = stripslashes(urldecode($_REQUEST['auth']));
 
 	} else {
 		$hdr = null;
@@ -277,19 +277,19 @@ function cancel_mode () {
  */
 function check_authentication_mode () {
 	// Validate the request
-	if (! isset($_POST['openid_mode']) || $_POST['openid_mode'] != 'check_authentication')
+	if (! isset($_REQUEST['openid_mode']) || $_REQUEST['openid_mode'] != 'check_authentication')
 		error_400();
 
-	$assoc_handle = @strlen($_POST['openid_assoc_handle'])
-		? $_POST['openid_assoc_handle']
+	$assoc_handle = @strlen($_REQUEST['openid_assoc_handle'])
+		? $_REQUEST['openid_assoc_handle']
 		: error_post('Missing assoc_handle');
 
-	$sig = @strlen($_POST['openid_sig'])
-		? $_POST['openid_sig']
+	$sig = @strlen($_REQUEST['openid_sig'])
+		? $_REQUEST['openid_sig']
 		: error_post('Missing sig');
 
-	$signed = @strlen($_POST['openid_signed'])
-		? $_POST['openid_signed']
+	$signed = @strlen($_REQUEST['openid_signed'])
+		? $_REQUEST['openid_signed']
 		: error_post('Missing signed');
 
 	// Prepare the return keys
@@ -298,18 +298,18 @@ function check_authentication_mode () {
 	);
 
 	// Invalidate the assoc handle if we need to
-	if (@strlen($_POST['openid_invalidate_handle'])) {
-		destroy_assoc_handle($_POST['openid_invalidate_handle']);
+	if (@strlen($_REQUEST['openid_invalidate_handle'])) {
+		destroy_assoc_handle($_REQUEST['openid_invalidate_handle']);
 
-		$keys['invalidate_handle'] = $_POST['openid_invalidate_handle'];
+		$keys['invalidate_handle'] = $_REQUEST['openid_invalidate_handle'];
 	}
 
 	// Validate the sig by recreating the kv pair and signing
-	$_POST['openid_mode'] = 'id_res';
+	$_REQUEST['openid_mode'] = 'id_res';
 	$tokens = '';
 	foreach (explode(',', $signed) as $param) {
 		$post = preg_replace('/\./', '_', $param);
-		$tokens .= sprintf("%s:%s\n", $param, $_POST['openid_' . $post]);
+		$tokens .= sprintf("%s:%s\n", $param, $_REQUEST['openid_' . $post]);
 	}
 
 	// Add the sreg stuff, if we've got it
@@ -354,28 +354,28 @@ function checkid ( $wait ) {
 	user_session();
 
 	// Get the options, use defaults as necessary
-	$return_to = @strlen($_GET['openid_return_to'])
-		? $_GET['openid_return_to']
+	$return_to = @strlen($_REQUEST['openid_return_to'])
+		? $_REQUEST['openid_return_to']
 		: error_400('Missing return_to');
 
-	$identity = @strlen($_GET['openid_identity'])
-			? $_GET['openid_identity']
+	$identity = @strlen($_REQUEST['openid_identity'])
+			? $_REQUEST['openid_identity']
 			: error_get($return_to, 'Missing identity');
 
-	$assoc_handle = @strlen($_GET['openid_assoc_handle'])
-			? $_GET['openid_assoc_handle']
+	$assoc_handle = @strlen($_REQUEST['openid_assoc_handle'])
+			? $_REQUEST['openid_assoc_handle']
 			: null;
 
-	$trust_root = @strlen($_GET['openid_trust_root'])
-			? $_GET['openid_trust_root']
+	$trust_root = @strlen($_REQUEST['openid_trust_root'])
+			? $_REQUEST['openid_trust_root']
 			: $return_to;
 
-	$sreg_required = @strlen($_GET['openid_sreg_required'])
-			? $_GET['openid_sreg_required']
+	$sreg_required = @strlen($_REQUEST['openid_sreg_required'])
+			? $_REQUEST['openid_sreg_required']
 			: '';
 
-	$sreg_optional = @strlen($_GET['openid_sreg_optional'])
-			? $_GET['openid_sreg_optional']
+	$sreg_optional = @strlen($_REQUEST['openid_sreg_optional'])
+			? $_REQUEST['openid_sreg_optional']
 			: '';
 
 	// required and optional make no difference to us
@@ -465,7 +465,7 @@ function checkid ( $wait ) {
  * Handle a consumer's request to see if the user is already logged in
  */
 function checkid_immediate_mode () {
-	if (! isset($_GET['openid_mode']) || $_GET['openid_mode'] != 'checkid_immediate')
+	if (! isset($_REQUEST['openid_mode']) || $_REQUEST['openid_mode'] != 'checkid_immediate')
 		error_500();
 
 	checkid(false);
@@ -477,7 +477,7 @@ function checkid_immediate_mode () {
  * to wait for them to perform a login if they're not
  */
 function checkid_setup_mode () {
-	if (! isset($_GET['openid_mode']) || $_GET['openid_mode'] != 'checkid_setup')
+	if (! isset($_REQUEST['openid_mode']) || $_REQUEST['openid_mode'] != 'checkid_setup')
 		error_500();
 
 	checkid(true);
@@ -598,9 +598,8 @@ function test_mode () {
 	}
 
 	// sys_get_temp_dir
-	$check = sys_get_temp_dir();
-	$res['sys_get_temp_dir'] = is_writable($check)
-		? 'pass' : "warn - '$check' is not writable";
+	$res['logfile'] = is_writable($profile['logfile'])
+		? 'pass' : "warn - log is not writable";
 
 	// session & new_assoc
 	user_session();
@@ -1222,7 +1221,7 @@ function new_secret () {
 	for($i=0; $i<20; $i++)
 		$r .= chr(mt_rand(0, 255));
 
-	debug("Generated new secret. Size: " . strlen($r));
+	debug("Generated new key: hash = '" . md5($r) . "', length = '" . strlen($r) . "'");
 	return $r;
 }
 
@@ -1280,7 +1279,7 @@ function secret ( $handle ) {
 		session_decode($dat);
 	}
 
-	debug("Session expires at: '$expiration', key length: " . strlen($secret));
+	debug("Found key: hash = '" . md5($secret) . "', length = '" . strlen($secret) . "', expiration = '$expiration'");
 	return array($secret, $expiration);
 }
 
