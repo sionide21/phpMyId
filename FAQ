@@ -19,7 +19,7 @@ the specs." I'm not using what I'm using because it's the most secure, I'm using
 it because it's what I have to use.
 
 
-OKAY, BUT WHY HTTP DIGEST?
+OKAY, BUT WHY HTTP DIGEST... YOU'RE NOT LOCKED IN THERE, ARE YOU?
 
 HTTP Digest is a way to ensure that your password is not transmitted over the
 Internet in plain text. A form based login (like, basically everything else out
@@ -38,7 +38,7 @@ send your credentials "over the wire" in a non-secure way to perform the setup
 at all.
 
 
-WHY IS GMP NOT ON BY DEFAULT?
+WHY IS GMP NOT ON BY (OR EVEN USED BY) DEFAULT?
 
 From the GMP home page (gmplib.org):
 
@@ -51,7 +51,14 @@ library, you can switch it on.
 
 
 WHAT ABOUT MULTIPLE USERS?
+
 Some people like to complain that phpMyID doesn't support multiple users. No
 kidding... wasn't really meant to. If you want a high power, ultra efficient
 OpenID Server that people can sign up for and useses a memcached and backend
 database for lightning quick transactions... go build your own.
+
+But, if you want to support just a couple of users, you *can* do that. Just
+give everyone their own unique config file. Since each file has a unique URL,
+one config file per user will do the job.
+
+EOF

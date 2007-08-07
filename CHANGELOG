@@ -1,3 +1,24 @@
+Version 0.6
+- Bugfix: client supplied non-default dh_gen and dh_modulus values were not
+  being properly decoded.
+- Bugfix: build_query urlencoding bug corrected.
+- All references to the _GET and _POST superglobals were converted to reference
+   _REQUEST.
+- GMP is now supported as an alternative to bcmath.
+- An internal pure-PHP big math library was added as a fallback for systems
+  lacking either bcmath or GMP support.
+- Default charset is now universally defined as 'iso-8859-1'.
+- A 'test' mode was added to support big math library validation.
+- A "robots" meta tag is now included in the default html output.
+- Support for phpdoc documentation was added.
+- README/FAQ docs were updated.
+
+Version 0.5
+- Enhancements have been made to allow authorization under PHP running in CGI
+  mode.
+- Authorization/Authentication function names have been cleaned up.
+- Various warning messages have been removed.
+
 Version 0.4
 - Added support for external configuration files, and multiple user setups.
 - Adjusted the idp_url parameter to remove the port number if it is a default
@@ -25,7 +46,6 @@ Version 0.2
 - Renamed the 'sha20' function to 'sha1_20' (to designate using 'sha1' to get
   a 20 byte hash)
 - Some code and debug cleanup
-
 
 Version 0.1
 - Initial Release

@@ -19,13 +19,17 @@
  * @global array $GLOBALS['profile']
  */
 $GLOBALS['profile'] = array(
+	# Basic Config
 	'auth_username'	=> 	'test',
 	'auth_password' =>	'37fa04faebe5249023ed1f6cc867329b',
 	'auth_realm'	=>	'phpMyID',
 
-#	'allow_test'	=> 	true,
+	# Advanced Config
+#	'allow_gmp'	=>	false,
+#	'allow_test'	=> 	false,
 #	'debug'		=>	false,
-#	'logfile'	=>	'/tmp/phpMyID.debug.log'
+#	'logfile'	=>	'/tmp/phpMyID.debug.log',
+#	'force_bigmath'	=>	false,
 );
 
 /**
