@@ -1,3 +1,12 @@
+Version 0.7
+- Bugfix: Non default query argument separators are now corrected.
+- Bugfix: Internal req_url key is (again) generated using HTTP_HOST instead of
+  SERVER_NAME
+- Session validation was removed from the self_check routine. It's still
+  conducted in the test mode. Some PHP setups had a problem with the way this
+  check was conducted, but anything more complex would require too much logic
+  for a lightweight self check.
+
 Version 0.6
 - Bugfix: client supplied non-default dh_gen and dh_modulus values were not
   being properly decoded.

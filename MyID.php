@@ -9,7 +9,7 @@
  * @copyright 2006-2007
  * @license http://www.gnu.org/licenses/gpl.html GNU Public License
  * @url http://siege.org/projects/phpMyID
- * @version 0.6
+ * @version 0.7
  */
 
 
@@ -1312,9 +1312,6 @@ function self_check () {
 			error_500("'$key' is missing from your profile.");
 	}
 
-	if (! is_writable(ini_get('session.save_path')))
-		error_500("PHP cannot save sessions.");
-
 	if (! isset($sreg) || ! is_array($sreg))
 		$sreg = array();
 }
@@ -1501,6 +1498,10 @@ $GLOBALS['charset'] = 'iso-8859-1';
 if (function_exists('mb_internal_encoding'))
 	mb_internal_encoding($charset);
 
+// Avoid problems with non-default arg_separator.output settings
+// Credit for this goes to user 'prelog' on the forums
+ini_set('arg_separator.output', '&');
+
 // Do a check to be sure everything is set up correctly
 self_check();
 
@@ -1536,7 +1537,7 @@ if (! array_key_exists('idp_url', $profile))
 // Determine the requested URL - DO NOT OVERRIDE
 $profile['req_url'] = sprintf("%s://%s%s%s",
 		      $proto,
-		      $_SERVER['SERVER_NAME'],
+		      $_SERVER['HTTP_HOST'],
 		      $port,
 		      $_SERVER["REQUEST_URI"]);
 
