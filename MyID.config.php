@@ -49,5 +49,5 @@ $GLOBALS['sreg'] = array (
 #	'timezone'		=> 'America/New_York'
 );
 
-include('MyID.php');
+require('MyID.php');
 ?>
