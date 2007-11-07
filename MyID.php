@@ -9,7 +9,7 @@
  * @copyright 2006-2007
  * @license http://www.gnu.org/licenses/gpl.html GNU Public License
  * @url http://siege.org/projects/phpMyID
- * @version 0.7
+ * @version 0.8
  */
 
 
@@ -1399,6 +1399,7 @@ function wrap_html ( $message ) {
 <title>phpMyID</title>
 <link rel="openid.server" href="' . $profile['req_url'] . '" />
 <link rel="openid.delegate" href="' . $profile['idp_url'] . '" />
+' . implode("\n", $profile['microid'])  . '
 <meta name="charset" content="' . $charset . '" />
 <meta name="robots" content="noindex,nofollow" />
 </head>
@@ -1526,6 +1527,10 @@ $GLOBALS['proto'] = (isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == 'on') ? 'h
 // Set the authorization state - DO NOT OVERRIDE
 $profile['authorized'] = false;
 
+// Set a default log file
+if (! array_key_exists('logfile', $profile))
+	$profile['logfile'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $profile['auth_realm'] . '.debug.log';
+
 // Set a default IDP URL
 if (! array_key_exists('idp_url', $profile))
 	$profile['idp_url'] = sprintf("%s://%s%s%s",
@@ -1559,6 +1564,18 @@ $profile['use_gmp'] = (extension_loaded('gmp') && $profile['allow_gmp']) ? true 
 // Determine if I can perform big math functions
 $profile['use_bigmath'] = (extension_loaded('bcmath') || $profile['use_gmp'] || $profile['force_bigmath']) ? true : false;
 
+// Determine if I should do microid stuff
+$profile['microid'] = array();
+if (array_key_exists('owner', $profile)) {
+	$hash = sha1($profile['idp_url']);
+	$values = is_array($profile['owner']) ? $profile['owner'] : array($profile['owner']);
+
+	foreach ($values as $owner) {
+		preg_match('/^([a-z]+)/i', $owner, $mtx);
+		$profile['microid'][] = sprintf('<meta name="microid" content="%s+%s:sha1:%s" />', $mtx[1], $proto, sha1(sha1($owner) . $hash));
+	}
+}
+
 // Set a default authentication domain
 if (! array_key_exists('auth_domain', $profile))
 	$profile['auth_domain'] = $profile['req_url'] . ' ' . $profile['idp_url'];
@@ -1576,10 +1593,6 @@ if (! array_key_exists('lifetime', $profile)) {
 	$gcm = ini_get('session.gc_maxlifetime');
 	$profile['lifetime'] = $sce < $gcm ? $sce : $gcm;
 }
-
-// Set a default log file
-if (! array_key_exists('logfile', $profile))
-	$profile['logfile'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $profile['auth_realm'] . '.debug.log';
 
 
 // Decide which runmode, based on user request or default

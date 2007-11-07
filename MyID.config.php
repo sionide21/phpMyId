@@ -30,6 +30,7 @@ $GLOBALS['profile'] = array(
 #	'debug'		=>	false,
 #	'logfile'	=>	'/tmp/phpMyID.debug.log',
 #	'force_bigmath'	=>	false,
+#	'owner'		=>	array('user@site.com', 'http://delegator.url'),
 );
 
 /**

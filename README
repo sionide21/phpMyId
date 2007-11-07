@@ -85,15 +85,13 @@ you use a server that you own and control.
    running in "safe mode," and while I disagree for the reasons they change the
    realm, there's nothing I can do about it.
 
-   Edit your config file, and change the key "auth_realm" to reflect the "Realm"
-   value displayed in your browser. The default is 'phpMyID' and it only needs
-   to be changed if the string you see in your browser is something different.
+   If you want to change this to some custom value (pointless to do so, but if
+   it makes you happy, you can) just edit the "auth_realm" key in your config
+   file so it reads as whatever you want. Remember, however, that you need to
+   double check your realm value by visiting MyID.config.php in a browser after
+   you make the change (and upload it). 
 
-   If you're going to want to change this to some custom value (again, pointless
-   to do so, but if it makes you happy, you can) just edit the "auth_realm" key
-   to read whatever you want. Remember, however, that you need to double check
-   your realm value by visiting MyID.config.php in a browser after you make the
-   change (and upload it). 
+   The important part is to keep the "realm" you see in your browser handy.
 
 
 5) Now you get to decide your login name and password. This is what you will use
@@ -222,6 +220,14 @@ Several other configuration keys exist and can be set in the 'profile' array:
 
 'logfile'	When the 'debug' key is true, this key is used to define the
 		absolute path to a debug log.
+
+'owner'		If you would like phpMyID to assert your ownership via MicroID
+		tags, you can configure this key (either as a string or an
+		array). Any values must be complete URLs to the asserted owner.
+		One suggestion is to enter the value of the URL you are
+		delegating from (installation step 7). You can also use your
+		email address. In either case, be sure to prefix your URL
+		correctly with "mailto:" or "http://" etc...
 
 
 ###########################
