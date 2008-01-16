@@ -1,7 +1,7 @@
 phpMyID - A standalone, single user, OpenID Identity Provider
 
 by: CJ Niemira <siege (at) siege (dot) org>
-(c) 2006-2007
+(c) 2006-2008
 http://siege.org/projects/phpMyID
 
 
@@ -68,7 +68,7 @@ you use a server that you own and control.
    web accessable, as long as you can figure out what the URL should be.
 
    If you did rename MyID.php, then you must change the last line of whatever
-   your config file is now called to reflect the new name (the 'include' line).
+   your config file is now called to reflect the new name (the 'require' line).
 
 
 3) Visit your config file (the one that used to be MyID.config.php - 'cause I
@@ -82,8 +82,8 @@ you use a server that you own and control.
 
 4) If your "Realm" is anything other than the string 'phpMyID' (like say, if it
    has a number after it) then make note of the value. This means that PHP is
-   running in "safe mode," and while I disagree for the reasons they change the
-   realm, there's nothing I can do about it.
+   running in "safe mode," and while I disagree with the reason *why* PHP
+   changes the realm, there's nothing I can do about it.
 
    If you want to change this to some custom value (pointless to do so, but if
    it makes you happy, you can) just edit the "auth_realm" key in your config
@@ -104,8 +104,8 @@ you use a server that you own and control.
     $ echo -n 'username:realm:password' | openssl md5
 
    If you are a Windows user, and do not already have an MD5 hashing tool, one
-   is available at http://siege.org/projects/phpMyID . To use it, download
-   the exe, and open a cmd session. Use it as follows:
+   is available at http://siege.org/projects/phpMyID/md5.exe . To use it,
+   download the exe, and open a cmd session. Here's an example of how it works:
 
     C:\Documents and Settings\cniemira>cd Desktop
     C:\Documents and Settings\cniemira\Desktop>md5.exe -d"username:realm:password"
@@ -113,13 +113,14 @@ you use a server that you own and control.
    In either case, make sure to substitute your username and password where
    indicated. You must also substitute "realm" for your authentication realm as
    determined in step 4. The resulting output, which will be a long alphanumeric
-   string, is your Digest password that must now be input into your config file
-   in the 'auth_password' field. While you're at it, enter the username you
+   string, is your "Digest Password" that must now be entered into your config
+   file in the 'auth_password' field. While you're at it, enter the username you
    just used as the 'auth_username' key.
 
    Note that the default username and password are both "test," and were encoded
    with the realm "phpMyID". That means you can probably test logging in right
-   of the bat as 'test'/'test'.
+   of the bat as 'test'/'test' (assuming your server is not running in safe
+   mode).
 
 
 6) Upload your config file again, replacing the one that was already there.
@@ -143,16 +144,16 @@ you use a server that you own and control.
    as your openid.server and openid.delegate.
 
    The preferred way of setting this up is to determine the URL you wish to
-   authenticate as (for example "http://siege.org", in my case), and add the
+   authenticate as (e.g., "http://phpmyid.com", in my case), and add the
    following to the HTML <head> section for that document:
 
-    <link rel="openid.server" href="http://siege.org/MyID.config.php">
-    <link rel="openid.delegate" href="http://siege.org/MyID.config.php">
+    <link rel="openid.server" href="http://phpmyid.com/MyID.config.php">
+    <link rel="openid.delegate" href="http://phpmyid.com/MyID.config.php">
 
    Remember, BOTH the openid.sever and openid.delegate values should be set to
    the same thing.
 
-   You may now use your URL with OpenID (again, "http://siege.org" in my case).
+   You may now use your URL with OpenID (e.g., "http://phpmyid.com" in my case).
 
 
 #####
@@ -164,10 +165,11 @@ If you wish, you can log out by visiting:
 
   http://yourdomain.com/path/to/MyID.php?openid.mode=logout
 
-There is also a 'log in' mode that will prompt you for credentials without
-having to be referred from a client site.
-
- http://yourdomain.com/path/to/MyID.php?openid.mode=login
+After you "log out" of phpMyID, YOU WILL HAVE TO close your browser. This is
+because it will cache your credentials and automatically log you back in the
+next time it is prompted to do so. You will not see the login box, as this will
+happen transparently. The illusion is that it looks like you never actually
+logged out, when in fact you did, and were then logged back in without knowing.
 
 
 ####################################
@@ -192,10 +194,6 @@ ADVANCED CONFIG KEYS
 
 Several other configuration keys exist and can be set in the 'profile' array:
 
-'allow_gmp'	When set to true, the GMP (Gnu MP Bignum library) extension,
-		if available, can be used for big math calculations (ie
-		encryption, or "Smart Mode").
-
 'allow_test'	If set to true, this key will allow phpMyID to run a special
 		test mode. Set the key to true, and visit your IdP url. You
 		should see a "Test" link that was not previously available.
@@ -203,12 +201,65 @@ Several other configuration keys exist and can be set in the 'profile' array:
 		to validate the functionality of the internal signature and
 		math functions. This information is useful for troubleshooting.
 
+'auth_realm'	You can configure the name of the realm you are prompted to log
+		into during authentication. Remember, if you change this value,
+		you will have to adjust your 'auth_password.'
+
 'debug'		If set to true, phpMyID will do perform debug logging. If you 
 		turn this on, you are strongly encouraged to also set the key
 		'logfile' to explicitly set the path to your debug log. If not,
 		phpMyID will attempt to automatically ascertain the correct
 		location to put a 'phpMyID.debug.log' file, and will cause an
 		internal error if it cannot write to that location.
+
+'idp_url'	This key defines the identity that phpMyID will allow you to
+		claim. It is almost always set correctly by default.
+
+'logfile'	When the 'debug' key is true, this key is used to define the
+		absolute path to a debug log.
+
+
+######################
+# OPTIONAL CONFIG KEYS
+######################
+
+'microid'	If you would like phpMyID to assert your ownership via MicroID
+		tags, you can configure this key (either as a string or an
+		array). Any values must be complete URLs to the asserted owner.
+		One suggestion is to enter the value of the URL you are
+		delegating from (installation step 7). You can also use your
+		email address. In either case, be sure to prefix your URL
+		correctly with "mailto:" or "http://" etc...
+
+'pavatar'	If you would like phpMyID to assert your ownership of a Pavatar
+		by embedding an optional image tag into its HTML document
+		header, you can configure this key. The value set should be a
+		complete URL to your Pavatar image. See http://pavatar.com
+		for more information.
+
+
+##########################
+# EXPERIMENTAL CONFIG KEYS
+##########################
+
+'paranoid'	Part of the OpenID specification requires clients to ask the
+		identity servers to trust a specific root URL for all identity
+		transactions. phpMyID ignores this requirement by default in
+		favor of a speedier and more fluid login for users, however,
+		you can a "paranoid" mode that will allow you to receive prompts
+		to trust each client as you log in to them.
+
+
+###########################
+REALLY ADVANCED CONFIG KEYS
+###########################
+
+'allow_gmp'	When set to true, the GMP (Gnu MP Bignum library) extension,
+		if available, can be used for big math calculations (ie
+		encryption, or "Smart Mode").
+
+'auth_domain'	This is the domain value used in the HTTP Digest authentication.
+		It defaults to your idp_url (see below).
 
 'force_bigmath'	If set to true, the internal pure-PHP big math library will be
 		used to ensure "Smart Mode" is always available, even if neither
@@ -218,32 +269,10 @@ Several other configuration keys exist and can be set in the 'profile' array:
 		Mode," and cannot otherwise get bcmath or gmp installed on your
 		system.
 
-'logfile'	When the 'debug' key is true, this key is used to define the
-		absolute path to a debug log.
-
-'owner'		If you would like phpMyID to assert your ownership via MicroID
-		tags, you can configure this key (either as a string or an
-		array). Any values must be complete URLs to the asserted owner.
-		One suggestion is to enter the value of the URL you are
-		delegating from (installation step 7). You can also use your
-		email address. In either case, be sure to prefix your URL
-		correctly with "mailto:" or "http://" etc...
-
-
-###########################
-REALLY ADVANCED CONFIG KEYS
-###########################
-
-'auth_domain'	This is the domain value used in the HTTP Digest authentication.
-		It defaults to your idp_url (see below).
-
 'lifetime'	This key defines how long an OpenID session is valid for. The
 		default value takes into consideration both the internal PHP
 		session lifespan as well as the default frequency of garbage
 		collection on your system.
-
-'idp_url'	This key defines the identity that phpMyID will allow you to
-		claim. It is almost always set correctly by default.
 
 
 ###############
@@ -277,7 +306,7 @@ TROUBLESHOOTING
    When you log in to phpMyID, your web browser will present the authentication
    realm to you in the login box it pops up. It will say something like this:
 
-    Enter username and password for "phpMyID-101" at http://siege.org
+    Enter username and password for "phpMyID-101" at http://phpmyid.com
 
   The quoted value in the above is your authentication realm. Make sure that is
   the same value you used when you created your password hash.
@@ -301,6 +330,23 @@ TROUBLESHOOTING
 	?>
 
    Then upload it, hit it in your browser, get your hash, and delete it.
+
+
+*) Why does/doesn't my Server string have "www." in it, my URL does/dosen't?
+
+   If your ServerName is set to one value (in your webserver configuration)
+   and you regularly access it with something else (say, an alias or w / w/o a
+   www on the front of it), phpMyID may get confused.
+
+   The easiest way to remedy this situation is to explicitly set the "idp_url"
+   key in your profile array. The value should be the exact, complete URL, to
+   your installation of phpMyID.
+
+	$GLOBALS['profile'] = array(
+		...
+		'idp_url' => 'http://phpmyid.com/index.php',
+		...
+		);
 
 
 *) Still can't figure it out?

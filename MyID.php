@@ -6,7 +6,7 @@
  *
  * @package phpMyID
  * @author CJ Niemira <siege (at) siege (dot) org>
- * @copyright 2006-2007
+ * @copyright 2006-2008
  * @license http://www.gnu.org/licenses/gpl.html GNU Public License
  * @url http://siege.org/projects/phpMyID
  * @version 0.8
@@ -26,7 +26,8 @@ define('PHPMYID_STARTED', true);
 $GLOBALS['known'] = array(
 	'assoc_types'	=> array('HMAC-SHA1'),
 
-	'openid_modes'	=> array('associate',
+	'openid_modes'	=> array('accept',
+				 'associate',
 				 'authorize',
 				 'cancel',
 				 'checkid_immediate',
@@ -66,7 +67,43 @@ $GLOBALS['p'] = '155172898181473697471232257763715539915724801966915404479707' .
 // Runmode functions
 
 /**
- * Perform an association with a consumer
+ * Allow the user to accept trust on a URL
+ * @global array $profile
+ */
+function accept_mode () {
+	global $profile;
+
+	// this is a user session
+	user_session();
+
+	// the user needs refresh urls in their session to access this mode
+	if (! isset($_SESSION['post_accept_url']) || ! isset($_SESSION['cancel_accept_url']) || ! isset($_SESSION['unaccepted_url']))
+		error_500('You may not access this mode directly.');
+
+	// has the user accepted the trust_root?
+	$accepted = @strlen($_REQUEST['accepted'])
+			? $_REQUEST['accepted']
+			: null;
+
+	// if so, refresh back to post_accept_url
+	if ($accepted === 'yes') {
+		$_SESSION['accepted_url'] = $_SESSION['unaccepted_url'];
+		wrap_refresh($_SESSION['post_accept_url']);
+
+	// if they rejected it, return to the client
+	} elseif ($accepted === 'no') {
+		wrap_refresh($_SESSION['cancel_accept_url']);
+	}
+
+	// if neither, offer the trust request
+	$q = strpos($profile['req_url'], '?') ? '&' : '?';
+	$yes = $profile['req_url'] . $q . 'accepted=yes';
+	$no  = $profile['req_url'] . $q . 'accepted=no';
+
+	wrap_html('The client site you are attempting to log into has requested that you trust the following URL:<br/><b>' . $_SESSION['unaccepted_url'] . '</b><br/><br/>Do you wish to continue?<br/><a href="' . $yes . '">Yes</a> | <a href="' . $no . '">No</a>');
+}
+
+/** * Perform an association with a consumer
  * @global array $known
  * @global array $profile
  * @global integer $g
@@ -381,9 +418,34 @@ function checkid ( $wait ) {
 	// required and optional make no difference to us
 	$sreg_required .= ',' . $sreg_optional;
 
+	// do the trust_root analysis
+	if ($trust_root != $return_to) {
+		// the urls are not the same, be sure return decends from trust
+		if (! url_descends($return_to, $trust_root))
+			error_500('Invalid trust_root: "' . $trust_root . '"');
+
+	}
+
+	// transfer the user to the url accept mode if they're paranoid
+	if ($profile['paranoid'] === true && (! session_is_registered('accepted_url') || $_SESSION['accepted_url'] != $trust_root)) {
+		$_SESSION['cancel_accept_url'] = $return_to;
+		$_SESSION['post_accept_url'] = $profile['req_url'];
+		$_SESSION['unaccepted_url'] = $trust_root;
+
+		debug('Transferring to acceptance mode.');
+		debug('Cancel URL: ' . $_SESSION['cancel_accept_url']);
+		debug('Post URL: ' . $_SESSION['post_accept_url']);
+
+		$q = strpos($profile['idp_url'], '?') ? '&' : '?';
+		wrap_refresh($profile['idp_url'] . $q . 'openid.mode=accept');
+	}
+
 	// make sure i am this identifier
-	if ($identity != $profile['idp_url'])
+	if ($identity != $profile['idp_url']) {
+		debug("Invalid identity: $identity");
+		debug("IdP URL: " . $profile['idp_url']);
 		error_get($return_to, "Invalid identity: '$identity'");
+	}
 
 	// begin setting up return keys
 	$keys = array(
@@ -1298,12 +1360,18 @@ function self_check () {
 	if (version_compare(phpversion(), '4.2.0', 'lt'))
 		error_500('The required minimum version of PHP is 4.2.0, you are running ' . phpversion());
 
-	$extensions = array('session', 'pcre');
-	foreach ($extensions as $x) {
+	$extension_r = array('session', 'pcre');
+	foreach ($extension_r as $x) {
 		if (! extension_loaded($x))
 			@dl($x);
 		if (! extension_loaded($x))
 			error_500("Required extension '$x' is missing.");
+	}
+
+	$extension_b = array('suhosin');
+	foreach ($extension_b as $x) {
+		if (extension_loaded($x))
+			error_500("phpMyID is not compatible with '$x'");
 	}
 
 	$keys = array('auth_username', 'auth_password');
@@ -1338,6 +1406,24 @@ function sha1_20 ($v) {
 }
 
 
+/**
+ * Look for the point of differentiation in two strings
+ * @param string $a
+ * @param string $b
+ * @return int
+ */
+function str_diff_at ($a, $b) {
+	if ($a == $b)
+		return -1;
+	for ($i = 0; $i < strlen($a); $i++)
+		if ($a[$i] != $b[$i] || strlen($b) <= $i)
+			break;
+	if (strlen($b) > strlen($a))
+		$i++;
+	return $i;
+}
+
+
 if (! function_exists('sys_get_temp_dir') && ini_get('open_basedir') == false) {
 /**
  * Create function if missing
@@ -1362,6 +1448,72 @@ function sys_get_temp_dir () {
 function sys_get_temp_dir () {
 	return realpath(dirname(__FILE__));
 }}
+
+
+/**
+ * Determine if a child URL actually decends from the parent, and that the
+ * parent is a good URL.
+ * THIS IS EXPERIMENTAL
+ * @param string $parent
+ * @param string $child
+ * @return bool
+ */
+function url_descends ( $child, $parent ) {
+	if ($child == $parent)
+		return true;
+
+	$keys = array();
+	$parts = array();
+
+	$req = array('scheme', 'host');
+	$bad = array('fragment', 'pass', 'user');
+
+	foreach (array('parent', 'child') as $name) {
+		$parts[$name] = @parse_url($$name);
+		if ($parts[$name] === false)
+			return false;
+
+		$keys[$name] = array_keys($parts[$name]);
+
+		if (array_intersect($keys[$name], $req) != $req)
+			return false;
+
+		if (array_intersect($keys[$name], $bad) != array())
+			return false;
+
+		if (! preg_match('/^https?$/i', strtolower($parts[$name]['scheme'])))
+			return false;
+
+		if (! array_key_exists('port', $parts[$name]))
+			$parts[$name]['port'] = (strtolower($parts[$name]['scheme']) == 'https') ? 443 : 80;
+
+		if (! array_key_exists('path', $parts[$name]))
+			$parts[$name]['path'] = '/';
+	}
+
+	// port and scheme must match
+	if ($parts['parent']['scheme'] != $parts['child']['scheme'] ||
+	    $parts['parent']['port'] != $parts['child']['port'])
+		return false;
+
+	// compare the hosts by reversing the strings
+	$cr_host = strtolower(strrev($parts['child']['host']));
+	$pr_host = strtolower(strrev($parts['parent']['host']));
+
+	$break = str_diff_at($cr_host, $pr_host);
+	if ($break >= 0 && ($pr_host[$break] != '*' || substr_count($pr_host, '.', 0, $break) < 2))
+		return false;
+
+	// now compare the paths
+	$break = str_diff_at($parts['child']['path'], $parts['parent']['path']);
+	$pb_char = $parts['parent']['path'][$break];
+	if ($break >= 0 
+	 && ($break < strlen($parts['parent']['path']) && $pb_char != '*')
+	 || ($break > strlen($parts['child']['path'])))
+		return false;
+
+	return true;
+}
 
 
 /**
@@ -1399,7 +1551,7 @@ function wrap_html ( $message ) {
 <title>phpMyID</title>
 <link rel="openid.server" href="' . $profile['req_url'] . '" />
 <link rel="openid.delegate" href="' . $profile['idp_url'] . '" />
-' . implode("\n", $profile['microid'])  . '
+' . implode("\n", $profile['opt_headers'])  . '
 <meta name="charset" content="' . $charset . '" />
 <meta name="robots" content="noindex,nofollow" />
 </head>
@@ -1564,18 +1716,6 @@ $profile['use_gmp'] = (extension_loaded('gmp') && $profile['allow_gmp']) ? true 
 // Determine if I can perform big math functions
 $profile['use_bigmath'] = (extension_loaded('bcmath') || $profile['use_gmp'] || $profile['force_bigmath']) ? true : false;
 
-// Determine if I should do microid stuff
-$profile['microid'] = array();
-if (array_key_exists('owner', $profile)) {
-	$hash = sha1($profile['idp_url']);
-	$values = is_array($profile['owner']) ? $profile['owner'] : array($profile['owner']);
-
-	foreach ($values as $owner) {
-		preg_match('/^([a-z]+)/i', $owner, $mtx);
-		$profile['microid'][] = sprintf('<meta name="microid" content="%s+%s:sha1:%s" />', $mtx[1], $proto, sha1(sha1($owner) . $hash));
-	}
-}
-
 // Set a default authentication domain
 if (! array_key_exists('auth_domain', $profile))
 	$profile['auth_domain'] = $profile['req_url'] . ' ' . $profile['idp_url'];
@@ -1595,12 +1735,36 @@ if (! array_key_exists('lifetime', $profile)) {
 }
 
 
+/*
+ * Optional Initialization
+ */
+// Setup optional headers
+$profile['opt_headers'] = array();
+
+// Determine if I should add microid stuff
+if (array_key_exists('microid', $profile)) {
+	$hash = sha1($profile['idp_url']);
+	$values = is_array($profile['microid']) ? $profile['microid'] : array($profile['microid']);
+
+	foreach ($values as $microid) {
+		preg_match('/^([a-z]+)/i', $microid, $mtx);
+		$profile['opt_headers'][] = sprintf('<meta name="microid" content="%s+%s:sha1:%s" />', $mtx[1], $proto, sha1(sha1($microid) . $hash));
+	}
+}
+
+// Determine if I should add pavatar stuff
+if (array_key_exists('pavatar', $profile))
+	$profile['opt_headers'][] = sprintf('<link rel="pavatar" href="%s" />', $profile['pavatar']);
+
+
+/*
+ * Do it
+ */
 // Decide which runmode, based on user request or default
 $run_mode = (isset($_REQUEST['openid_mode'])
 	  && in_array($_REQUEST['openid_mode'], $known['openid_modes']))
 	? $_REQUEST['openid_mode']
 	: 'no';
-
 
 // Run in the determined runmode
 debug("Run mode: $run_mode at: " . time());
