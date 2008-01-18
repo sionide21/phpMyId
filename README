@@ -6,13 +6,16 @@ http://siege.org/projects/phpMyID
 
 
 phpMyID is a small, fairly lightweight, standalone, single user Identity
-Provider for OpenID authentication. It comprises a single PHP script that can be
-used by one individual to run their own personal OpenID "IdP."
+Provider for OpenID authentication. It comprises a one PHP script (plus a config
+file) that can be used by one individual to run their own personal OpenID "IdP."
 
 This program requires no external libraries, and has very minimal requirements.
 It should run on any PHP server (v4.2+), and can support OpenID in 'Smart Mode.'
 This program caches all data using built-in PHP session handling, so it requires
 no database, and no explicit write access to the file system.
+
+phpMyID is NOT compatible with Suhosin or other hardened PHP systems (Debian
+users take note).
 
 User authentication is done using HTTP Digest authentication, so your password
 is never transmitted over the wire in plain text.
@@ -278,6 +281,16 @@ REALLY ADVANCED CONFIG KEYS
 ###############
 TROUBLESHOOTING
 ###############
+
+*) Received error: "phpMyID is not compatible with 'suhosin'"
+
+   Suhosin is a security add-on for PHP which, amongst other things, removes
+   PHP's ability to open and access multiple sessions at one time. Simply put,
+   phpMyID is reliant upon this feature, and will therefore not work with a
+   hardened PHP.
+
+   There is currently no workaround.
+
 
 *) Received error: "Missing expected authorization header."
 
