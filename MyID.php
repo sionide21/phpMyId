@@ -421,7 +421,7 @@ function checkid ( $wait ) {
 			: '';
 
 	// determine the cancel url
-	$q = strpos($profile['idp_url'], '?') ? '&' : '?';
+	$q = strpos($return_to, '?') ? '&' : '?';
 	$cancel_url = $return_to . $q . 'openid.mode=cancel';
 
 	// required and optional make no difference to us
