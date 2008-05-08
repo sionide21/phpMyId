@@ -282,6 +282,11 @@ REALLY ADVANCED CONFIG KEYS
 TROUBLESHOOTING
 ###############
 
+*) Can't log in while running phpMyID under IIS
+
+   https://www.siege.org/forum/viewtopic.php?id=273
+
+
 *) Received error: "phpMyID is not compatible with 'suhosin'"
 
    Suhosin is a security add-on for PHP which, amongst other things, removes

@@ -1,3 +1,15 @@
+Version 0.9
+- Bugfix: A weakness in the digest authentication method has been addressed. Thanks to forum user 'MAILER-DAEMON' for the patch.
+- Bugfix: A few PHP "Notices" have been corrected. Thanks to forum user 'thomas.leplus' for the patch.
+-Bugfix: Paranoid mode ancestry checks did not work correctly in PHP4. Thanks to forum user 'sehrgut' for the patch.
+- Bugfix: Cancel URL did not have 'openid.mode=cancel' appended to it. Thanks to forum user 'zstoichev' for noticing.
+- Bugfix: Paranoid mode will not be invoked on checkid_immediate
+
+Version 0.8
+- Paranoid mode was added. Users may now see and approve "trust_root" URLs that they are logging in to.
+- Support was added for embedding a MicroID.
+- Support was added for embedding a Pavatar. 
+
 Version 0.7
 - Bugfix: Non default query argument separators are now corrected.
 - Bugfix: Internal req_url key is (again) generated using HTTP_HOST instead of

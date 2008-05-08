@@ -24,7 +24,7 @@ $GLOBALS['profile'] = array(
 	'auth_password' =>	'37fa04faebe5249023ed1f6cc867329b',
 
 	# Optional Config - Please see README before setting these
-#	'microid'	=>	array('user@site.com', 'http://delegator.url'),
+#	'microid'	=>	array('mailto:user@site', 'http://delegator'),
 #	'pavatar'	=>	'http://your.site.com/path/pavatar.img',
 
 	# Advanced Config - Please see README before setting these

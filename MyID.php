@@ -9,7 +9,7 @@
  * @copyright 2006-2008
  * @license http://www.gnu.org/licenses/gpl.html GNU Public License
  * @url http://siege.org/projects/phpMyID
- * @version 0.8
+ * @version 0.9
  */
 
 
@@ -206,7 +206,7 @@ function authorize_mode () {
 	// try to get the digest headers - what a PITA!
 	if (function_exists('apache_request_headers') && ini_get('safe_mode') == false) {
 		$arh = apache_request_headers();
-		$hdr = $arh['Authorization'];
+		$hdr = isset($arh['Authorization']) ? $arh['Authorization'] : null;
 
 	} elseif (isset($_SERVER['PHP_AUTH_DIGEST'])) {
 		$hdr = $_SERVER['PHP_AUTH_DIGEST'];
@@ -216,6 +216,9 @@ function authorize_mode () {
 
 	} elseif (isset($_ENV['PHP_AUTH_DIGEST'])) {
 		$hdr = $_ENV['PHP_AUTH_DIGEST'];
+
+	} elseif (isset($_SERVER['Authorization'])) {
+		$hdr = $_SERVER['Authorization'];
 
 	} elseif (isset($_REQUEST['auth'])) {
 		$hdr = stripslashes(urldecode($_REQUEST['auth']));
@@ -243,7 +246,7 @@ function authorize_mode () {
 			$hdr[$m[1]] = $m[2] ? $m[2] : $m[3];
 		debug($hdr, 'Parsed digest headers:');
 
-		if (isset($_SESSION['uniqid']) && $hdr['nonce'] != $_SESSION['uniqid']) {
+		if (isset($_SESSION['uniqid']) && ($hdr['nonce'] != $_SESSION['uniqid'] || $_SERVER['REQUEST_TIME'] - hexdec(substr($hdr['nonce'], 0, 8)) > 300)) {
 			$stale = true;
 			unset($_SESSION['uniqid']);
 		}
@@ -290,7 +293,7 @@ function authorize_mode () {
 	}
 
 	// if we get this far the user is not authorized, so send the headers
-	$uid = uniqid(mt_rand(1,9));
+	$uid = sprintf("%08x%s", time(), uniqid(mt_rand(1,9)));
 	$_SESSION['uniqid'] = $uid;
 
 	debug('Prompting user to log in. Stale? ' . $stale);
@@ -350,7 +353,8 @@ function check_authentication_mode () {
 	}
 
 	// Add the sreg stuff, if we've got it
-	foreach (explode(',', $sreg_required) as $key) {
+	if (isset($sreg_required)) {
+		foreach (explode(',', $sreg_required) as $key) {
 			if (! isset($sreg[$key]))
 				continue;
 			$skey = 'sreg.' . $key;
@@ -358,6 +362,7 @@ function check_authentication_mode () {
 			$tokens .= sprintf("%s:%s\n", $skey, $sreg[$key]);
 			$keys[$skey] = $sreg[$key];
 			$fields[] = $skey;
+		}
 	}
 
 	// Look up the consumer's shared_secret and timeout
@@ -415,6 +420,10 @@ function checkid ( $wait ) {
 			? $_REQUEST['openid_sreg_optional']
 			: '';
 
+	// determine the cancel url
+	$q = strpos($profile['idp_url'], '?') ? '&' : '?';
+	$cancel_url = $return_to . $q . 'openid.mode=cancel';
+
 	// required and optional make no difference to us
 	$sreg_required .= ',' . $sreg_optional;
 
@@ -427,8 +436,8 @@ function checkid ( $wait ) {
 	}
 
 	// transfer the user to the url accept mode if they're paranoid
-	if ($profile['paranoid'] === true && (! session_is_registered('accepted_url') || $_SESSION['accepted_url'] != $trust_root)) {
-		$_SESSION['cancel_accept_url'] = $return_to;
+	if ($wait == 1 && isset($profile['paranoid']) && $profile['paranoid'] === true && (! session_is_registered('accepted_url') || $_SESSION['accepted_url'] != $trust_root)) {
+		$_SESSION['cancel_accept_url'] = $cancel_url;
 		$_SESSION['post_accept_url'] = $profile['req_url'];
 		$_SESSION['unaccepted_url'] = $trust_root;
 
@@ -461,7 +470,7 @@ function checkid ( $wait ) {
 		if ($wait) {
 			unset($_SESSION['uniqid']);
 
-			$_SESSION['cancel_auth_url'] = $return_to;
+			$_SESSION['cancel_auth_url'] = $cancel_url;
 			$_SESSION['post_auth_url'] = $profile['req_url'];
 
 			debug('Transferring to authorization mode.');
@@ -1244,7 +1253,7 @@ function long($b) {
  * @return array
  */
 function new_assoc ( $expiration ) {
-	if (is_array($_SESSION)) {
+	if (isset($_SESSION) && is_array($_SESSION)) {
 		$sid = session_id();
 		$dat = session_encode();
 		session_write_close();
@@ -1314,7 +1323,7 @@ function secret ( $handle ) {
 	if (! preg_match('/^\w+$/', $handle))
 		return array(false, 0);
 
-	if (is_array($_SESSION)) {
+	if (isset($_SESSION) && is_array($_SESSION)) {
 		$sid = session_id();
 		$dat = session_encode();
 		session_write_close();
@@ -1415,12 +1424,11 @@ function sha1_20 ($v) {
 function str_diff_at ($a, $b) {
 	if ($a == $b)
 		return -1;
-	for ($i = 0; $i < strlen($a); $i++)
-		if ($a[$i] != $b[$i] || strlen($b) <= $i)
-			break;
-	if (strlen($b) > strlen($a))
-		$i++;
-	return $i;
+	$n = min(strlen($a), strlen($b));
+	for ($i = 0; $i < $n; $i++)
+		if ($a[$i] != $b[$i])
+			return $i;
+	return $n;
 }
 
 
@@ -1501,16 +1509,16 @@ function url_descends ( $child, $parent ) {
 	$pr_host = strtolower(strrev($parts['parent']['host']));
 
 	$break = str_diff_at($cr_host, $pr_host);
-	if ($break >= 0 && ($pr_host[$break] != '*' || substr_count($pr_host, '.', 0, $break) < 2))
+	if ($break >= 0 && ($pr_host[$break] != '*' || substr_count(substr($pr_host, 0, $break), '.') < 2))
 		return false;
 
 	// now compare the paths
 	$break = str_diff_at($parts['child']['path'], $parts['parent']['path']);
-	$pb_char = $parts['parent']['path'][$break];
-	if ($break >= 0 
-	 && ($break < strlen($parts['parent']['path']) && $pb_char != '*')
-	 || ($break > strlen($parts['child']['path'])))
-		return false;
+	if ($break >= 0) {
+		$pb_char = $parts['parent']['path'][$break];
+		if (($break < strlen($parts['parent']['path']) && $pb_char != '*') || ($break > strlen($parts['child']['path'])))
+			return false;
+	}
 
 	return true;
 }
@@ -1551,7 +1559,7 @@ function wrap_html ( $message ) {
 <title>phpMyID</title>
 <link rel="openid.server" href="' . $profile['req_url'] . '" />
 <link rel="openid.delegate" href="' . $profile['idp_url'] . '" />
-' . implode("\n", $profile['opt_headers'])  . '
+' . implode("\n", $profile['opt_headers']) . '
 <meta name="charset" content="' . $charset . '" />
 <meta name="robots" content="noindex,nofollow" />
 </head>
