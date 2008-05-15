@@ -246,13 +246,14 @@ function authorize_mode () {
 			$hdr[$m[1]] = $m[2] ? $m[2] : $m[3];
 		debug($hdr, 'Parsed digest headers:');
 
-		if (isset($_SESSION['uniqid']) && ($hdr['nonce'] != $_SESSION['uniqid'] || $_SERVER['REQUEST_TIME'] - hexdec(substr($hdr['nonce'], 0, 8)) > 300)) {
-			$stale = true;
-			unset($_SESSION['uniqid']);
-		}
-
 		if (! isset($_SESSION['failures']))
 			$_SESSION['failures'] = 0;
+
+		if (isset($_SESSION['uniqid']) && $hdr['nonce'] != $_SESSION['uniqid'])
+			$stale = true;
+
+		if (isset($_SESSION['uniqid']))
+			unset($_SESSION['uniqid']);
 
 		if ($profile['auth_username'] == $hdr['username'] && ! $stale) {
 
@@ -275,25 +276,32 @@ function authorize_mode () {
 				// return to the refresh url if they get in
 				wrap_refresh($_SESSION['post_auth_url']);
 
-			// too many failures
-			} elseif (strcmp($hdr['nc'], 4) > 0 || $_SESSION['failures'] > 4) {
-				debug('Too many password failures');
-				error_get($_SESSION['cancel_auth_url'], 'Too many password failures. Double check your authorization realm. You must restart your browser to try again.');
-
 			// failed login
 			} else {
 				$_SESSION['failures']++;
 				debug('Login failed: ' . $hdr['response'] . ' != ' . $ok);
 				debug('Fail count: ' . $_SESSION['failures']);
 			}
+
+		} elseif ($profile['auth_username'] != $hdr['username']) {
+			$_SESSION['failures']++;
+			debug('Bad username: ' . $hdr['username']);
+			debug('Fail count: ' . $_SESSION['failures']);
 		}
 
-	} elseif (is_null($digest) && $profile['authorized'] === false && isset($_SESSION['uniqid'])) {
+		// does this make too many failures?
+		if (strcmp(hexdec($hdr['nc']), 4) > 0 || $_SESSION['failures'] > 4) {
+			debug('Too many password failures');
+			error_get($_SESSION['cancel_auth_url'], 'Too many password failures. Double check your authorization realm. You must restart your browser to try again.');
+		}
+
+	} elseif (isset($_SESSION['uniqid']) && is_null($digest) && $profile['authorized'] === false) {
+		unset($_SESSION['uniqid']);
 		error_500('Missing expected authorization header.');
 	}
 
 	// if we get this far the user is not authorized, so send the headers
-	$uid = sprintf("%08x%s", time(), uniqid(mt_rand(1,9)));
+	$uid = uniqid(mt_rand(1,9));
 	$_SESSION['uniqid'] = $uid;
 
 	debug('Prompting user to log in. Stale? ' . $stale);
@@ -1514,11 +1522,10 @@ function url_descends ( $child, $parent ) {
 
 	// now compare the paths
 	$break = str_diff_at($parts['child']['path'], $parts['parent']['path']);
-	if ($break >= 0) {
-		$pb_char = $parts['parent']['path'][$break];
-		if (($break < strlen($parts['parent']['path']) && $pb_char != '*') || ($break > strlen($parts['child']['path'])))
-			return false;
-	}
+	if ($break >= 0
+	   && ($break < strlen($parts['parent']['path']) && $parts['parent']['path'][$break] != '*')
+	   || ($break > strlen($parts['child']['path'])))
+		return false;
 
 	return true;
 }

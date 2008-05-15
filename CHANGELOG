@@ -1,5 +1,5 @@
 Version 0.9
-- Bugfix: A weakness in the digest authentication method has been addressed. Thanks to forum user 'MAILER-DAEMON' for the patch.
+- Bugfix: A weakness in the digest authentication method has been addressed. Thanks to forum user 'MAILER-DAEMON' for noticing.
 - Bugfix: A few PHP "Notices" have been corrected. Thanks to forum user 'thomas.leplus' for the patch.
 -Bugfix: Paranoid mode ancestry checks did not work correctly in PHP4. Thanks to forum user 'sehrgut' for the patch.
 - Bugfix: Cancel URL did not have 'openid.mode=cancel' appended to it. Thanks to forum user 'zstoichev' for noticing.
