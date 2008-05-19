@@ -9,6 +9,24 @@ http://siege.org/projects/phpMyID
 FREQUENTLY ASKED QUESTIONS
 **************************
 
+WHY IS PHPMYID SO UGLY?
+
+In a world full of CSS, embedded flash, and web based dancing balogna, it's hard
+to contemplate a modern web based software package that doesn't even ship with a
+logo image. Well, that's the case for phpMyID. It's about as "plain Jane" as you
+can get in the looks department, and that's intentional.
+
+The explanation is really quite simple: phpMyID isn't much to look at because,
+after you install it, you really shouldn't ever need look at it again. It's not
+a "destination," there's no dynamic content, and it won't attract visitors to
+your site. It doesn't even sport a "powered by" footer. One of the chief design
+goals for phpMyID was to keep it as light weight as possible, and designing a
+landing page full of named DIVs, CSS, logos, and spacer-dot-gif files simply
+isn't in line with that goal.
+
+So, why is phpMyID "ugly?" It's not... it's spartan!
+
+
 WHY ARE YOU USING (x) INSTEAD OF (y)?
 
 I get a lot of people who write to me and ask why phpMyID works the way it does.

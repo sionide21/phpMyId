@@ -284,7 +284,11 @@ TROUBLESHOOTING
 
 *) Can't log in while running phpMyID under IIS
 
-   https://www.siege.org/forum/viewtopic.php?id=273
+   By default, PHP for Windows ships in such a way that sessions do not work 
+   correctly out of the box. You will need to create a folder called "sessions"
+   in your PHP installation directory.
+
+   See: https://www.siege.org/forum/viewtopic.php?id=273
 
 
 *) Received error: "phpMyID is not compatible with 'suhosin'"
@@ -294,7 +298,10 @@ TROUBLESHOOTING
    phpMyID is reliant upon this feature, and will therefore not work with a
    hardened PHP.
 
-   There is currently no workaround.
+   Some users have reported successfully using phpMyID with suhosin, either by
+   modifying the script, or using an alternate webserver (such as lighttpd).
+   These solutions are unsupported. There is currently no official support
+   for phpMyID with suhosin.
 
 
 *) Received error: "Missing expected authorization header."
