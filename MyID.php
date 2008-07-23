@@ -88,11 +88,11 @@ function accept_mode () {
 	// if so, refresh back to post_accept_url
 	if ($accepted === 'yes') {
 		$_SESSION['accepted_url'] = $_SESSION['unaccepted_url'];
-		wrap_refresh($_SESSION['post_accept_url']);
+		wrap_redirect($_SESSION['post_accept_url']);
 
 	// if they rejected it, return to the client
 	} elseif ($accepted === 'no') {
-		wrap_refresh($_SESSION['cancel_accept_url']);
+		wrap_redirect($_SESSION['cancel_accept_url']);
 	}
 
 	// if neither, offer the trust request
@@ -274,7 +274,7 @@ function authorize_mode () {
 				$profile['authorized'] = true;
 
 				// return to the refresh url if they get in
-				wrap_refresh($_SESSION['post_auth_url']);
+				wrap_redirect($_SESSION['post_auth_url']);
 
 			// failed login
 			} else {
@@ -454,7 +454,7 @@ function checkid ( $wait ) {
 		debug('Post URL: ' . $_SESSION['post_accept_url']);
 
 		$q = strpos($profile['idp_url'], '?') ? '&' : '?';
-		wrap_refresh($profile['idp_url'] . $q . 'openid.mode=accept');
+		wrap_redirect($profile['idp_url'] . $q . 'openid.mode=accept');
 	}
 
 	// make sure i am this identifier
@@ -486,7 +486,7 @@ function checkid ( $wait ) {
 			debug('Post URL: ' . $_SESSION['post_auth_url']);
 
 			$q = strpos($profile['idp_url'], '?') ? '&' : '?';
-			wrap_refresh($profile['idp_url'] . $q . 'openid.mode=authorize');
+			wrap_redirect($profile['idp_url'] . $q . 'openid.mode=authorize');
 		} else {
 			$keys['user_setup_url'] = $profile['idp_url'];
 		}
@@ -536,7 +536,7 @@ function checkid ( $wait ) {
 		$keys['sig'] = base64_encode(hmac($shared_secret, $tokens));
 	}
 
-	wrap_location($return_to, $keys);
+	wrap_keyed_redirect($return_to, $keys);
 }
 
 
@@ -607,7 +607,7 @@ function login_mode () {
 		'return_to' => $profile['idp_url']
 	);
 
-	wrap_location($profile['idp_url'], $keys);
+	wrap_keyed_redirect($profile['idp_url'], $keys);
 }
 
 
@@ -628,7 +628,7 @@ function logout_mode () {
 	debug('User session destroyed.');
 
 	header('HTTP/1.0 401 Unauthorized');
-	wrap_refresh($profile['idp_url']);
+	wrap_redirect($profile['idp_url']);
 }
 
 
@@ -1185,7 +1185,7 @@ function error_500 ( $message = 'Internal Server Error' ) {
  * @param string $message
  */
 function error_get ( $url, $message = 'Bad Request') {
-	wrap_location($url, array('mode' => 'error', 'error' => $message));
+	wrap_keyed_redirect($url, array('mode' => 'error', 'error' => $message));
 }
 
 
@@ -1387,7 +1387,7 @@ function self_check () {
 
 	$extension_b = array('suhosin');
 	foreach ($extension_b as $x) {
-		if (extension_loaded($x))
+		if (extension_loaded($x) &! $profile["allow_$x"])
 			error_500("phpMyID is not compatible with '$x'");
 	}
 
@@ -1598,20 +1598,30 @@ function wrap_kv ( $keys ) {
 
 
 /**
- * Return an HTML refresh, with OpenID keys
+ * Redirect, with OpenID keys
  * @param string $url
  * @param array @keys
  */
-function wrap_location ($url, $keys) {
+function wrap_keyed_redirect ($url, $keys) {
 	$keys = append_openid($keys);
 	debug($keys, 'Location keys');
 
 	$q = strpos($url, '?') ? '&' : '?';
-	header('Location: ' . $url . $q . http_build_query($keys));
-	debug('Location: ' . $url . $q . http_build_query($keys));
-	exit(0);
+	wrap_redirect($url . $q . http_build_query($keys));
 }
 
+
+/**
+ * Redirect the browser
+ * @global string $charset
+ * @param string $url
+ */
+function wrap_redirect ($url) {
+	header('HTTP/1.1 302 Found');
+	header('Location: ' . $url);
+	debug('Location: ' . $url);
+	exit(0);
+}
 
 /**
  * Return an HTML refresh
@@ -1694,10 +1704,6 @@ $GLOBALS['proto'] = (isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == 'on') ? 'h
 // Set the authorization state - DO NOT OVERRIDE
 $profile['authorized'] = false;
 
-// Set a default log file
-if (! array_key_exists('logfile', $profile))
-	$profile['logfile'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $profile['auth_realm'] . '.debug.log';
-
 // Set a default IDP URL
 if (! array_key_exists('idp_url', $profile))
 	$profile['idp_url'] = sprintf("%s://%s%s%s",
@@ -1749,6 +1755,10 @@ if (! array_key_exists('lifetime', $profile)) {
 	$profile['lifetime'] = $sce < $gcm ? $sce : $gcm;
 }
 
+// Set a default log file
+if (! array_key_exists('logfile', $profile))
+	$profile['logfile'] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $profile['auth_realm'] . '.debug.log';
+
 
 /*
  * Optional Initialization
@@ -1784,5 +1794,5 @@ $run_mode = (isset($_REQUEST['openid_mode'])
 // Run in the determined runmode
 debug("Run mode: $run_mode at: " . time());
 debug($_REQUEST, 'Request params');
-eval($run_mode . '_mode();');
+call_user_func($run_mode . '_mode');
 ?>

@@ -298,10 +298,12 @@ TROUBLESHOOTING
    phpMyID is reliant upon this feature, and will therefore not work with a
    hardened PHP.
 
-   Some users have reported successfully using phpMyID with suhosin, either by
-   modifying the script, or using an alternate webserver (such as lighttpd).
-   These solutions are unsupported. There is currently no official support
-   for phpMyID with suhosin.
+   To make phpMyID work with Suhosin, you can try the following:
+   1) Set the profile key 'allow_suhosin' to "true" in your config file.
+   2) Set "suhosin.session.encrypt Off" in either your PHP/Suhosin config file,
+      or as a php_flag in your httpd.conf (or .htaccess).
+
+   See: https://www.siege.org/forum/viewtopic.php?pid=3167
 
 
 *) Received error: "Missing expected authorization header."

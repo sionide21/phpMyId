@@ -30,6 +30,7 @@ $GLOBALS['profile'] = array(
 	# Advanced Config - Please see README before setting these
 #	'allow_gmp'	=>	false,
 #	'allow_test'	=> 	false,
+#	'allow_suhosin'	=>	false,
 #	'auth_realm'	=>	'phpMyID',
 #	'force_bigmath'	=>	false,
 #	'idp_url'	=>	'http://your.site.com/path/MyID.config.php',
