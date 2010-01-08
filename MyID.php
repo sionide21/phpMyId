@@ -809,9 +809,12 @@ function test_mode () {
 	// Yubikey
 	if ($profile['auth_type'] == 'yubikey' || $profile['auth_type'] == 'yubikey_twofactor') {
 		$res['yubikey'] = (include 'Auth/Yubico.php')
-		? 'pass' : 'warn - not loaded';
+		? 'pass' : 'fail - not loaded';
+		$res['curl'] = extension_loaded('curl')
+		? 'pass' : 'fail - not loaded';
 	} else {
 		$res['yubikey'] = 'pass - n/a';
+		$res['curl'] = 'pass - n/a';
 	}
 
 	// sys_get_temp_dir
