@@ -675,6 +675,14 @@ function test_mode () {
 	} else {
 		$res['gmp'] = 'pass - n/a';
 	}
+	
+	// Yubikey
+	if ($profile['allow_yubikey']) {
+		$res['yubikey'] = (include 'Auth/Yubico.php')
+		? 'pass' : 'warn - not loaded';
+	} else {
+		$res['yubikey'] = 'pass - n/a';
+	}
 
 	// sys_get_temp_dir
 	$res['logfile'] = is_writable($profile['logfile'])
