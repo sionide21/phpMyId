@@ -69,12 +69,17 @@ $auth_types = array();
 
 $auth_types['digest'] = array(
 	'method' => digest_auth,
-	'keys'   => array('auth_username', 'auth_password')
+	'keys'   => array('auth_username', 'auth_password', 'auth_realm')
 );
 
 $auth_types['yubikey'] = array(
 	'method' => yubikey_auth,
 	'keys'   => array('auth_username', 'yk_api_id', 'yk_api_key')
+);
+
+$auth_types['yubikey_twofactor'] = array(
+	'method' => yubikey_twofac_auth,
+	'keys'   => array('auth_username', 'auth_password', 'auth_realm', 'yk_api_id', 'yk_api_key')
 );
 
 // Runmode functions
@@ -218,6 +223,63 @@ function authorize_mode () {
 		error_500('You may not access this mode directly.');
 
 	$auth_types[$profile['auth_type']]['method']();
+}
+
+// Yubikey Two-Factor Authentication
+function yubikey_twofac_auth() {
+	global $profile;
+
+	$yk_login = <<<RESP
+		<style>
+			.yubiKeyInput{
+				background: white
+				url(data:image/gif;base64,R0lGODlhEAAQAOYAAKvPNNHlj8PdbrXVTbfWUazQN/H33PP44fr8897sr7bVT7fXUvH33cHbafz99+v0z6zQMKvPM8DbZtPmlLjWU8ffdKvPNfr89Pv99bbWT8/ki+vzzcLcbN7tsOz007LTP7HTPPL44cPdbfv99MTdcfX55sHcad7srNzrrNbomb/aYrzZWPz++M7jhcHbar3ZYKbNIe3106zPNe/22aPLGfn78v7+/rbVTqXNIOjyxcffcsDcaOz10b7aYvr88r/bZez00bbWSr/aY9Hkj7/bZt3srvf67PD228zif+Xwvfz9+NzrqqjNJMHbaOv0zt3rq+bxwd/tsarPK6zPNrzYV7XVS7fWUvn78erzy8Pcbc/kjMPdb7/bZOrzzb3aYOrzyv///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAAAAAAALAAAAAAQABAAAAesgGCCg4SFhRhRJBQUWwkXhmA8BBFcGlpEEQpOhR4FLwyEB0IWD4MIVl4Yhg4/AzWCHQAGYCk0XyMQFWAhMk+CAk2CJRAtSUwbgiIuggsBgxUfVCs2ghM3zM6COVIwJ4MTA78mg0pBIEaDAg2CCQCgYDE4SIMHBUuCCBk9DmBQOrNgWEiocmUQkCkqZhA6IgFAl0IPFADYEWBIAwsDsEC6UCQLAQIcUPiARLJQIAA7) no-repeat 2px 2px; 
+				padding-left: 20px;
+				height: 18px;
+				width: 300px;
+			}
+		</style>
+		<form method="post">
+		<table>
+		<tr><th>Password:</th><td><input autocomplete="off" type="password" name="password"></td></tr>
+		<tr><th>YubiKey:</th><td><input autocomplete="off" type="text" name="otp" class="yubiKeyInput"></td></tr>
+		<tr><td>$nbsp</td><td><input type="submit" value="login"></td></tr>
+		</form>
+RESP;
+
+	if(! isset($_POST['otp']) || ! isset($_POST['password'])) {
+		wrap_html($yk_login);
+	}
+
+	if (md5($profile['auth_username'].':'.$profile['auth_realm'].':'.$_POST['password']) != $profile['auth_password']) { 
+		$_SESSION['failures']++;
+		debug('Login failed: ' . $hdr['response'] . ' != ' . $ok);
+		debug('Fail count: ' . $_SESSION['failures']);
+		if($_SESSION['failures'] > 4) {
+			debug('Too many password failures');
+			error_get($_SESSION['cancel_auth_url'], 'Too many password failures. Double check your authorization realm. You must restart your browser to try again.');
+		}
+		wrap_html("<div style=\"color:red;font-family:\">Invalid Password</div><br/>" . $yk_login);
+	}
+
+	require_once 'Auth/Yubico.php';
+	$yubi = &new Auth_Yubico($profile['yk_api_id'], $profile['yk_api_key']);
+
+	$auth = $yubi->verify($_POST['otp']);
+	if (PEAR::isError($auth)) {
+		wrap_html("<div style=\"color:red;font-family:\">Authentication Error: $auth</div><br/>" . $yk_login);
+	} else {
+		// Successful login
+		$otp = $yubi->parsePasswordOTP($_POST['otp']);
+		debug('Authentication successful');
+		debug('User session is: ' . session_id());
+		$_SESSION['auth_username'] = $otp['prefix'];
+		$_SESSION['auth_url'] = $profile['idp_url'];
+		$profile['authorized'] = true;
+
+		// return to the refresh url if they get in
+		wrap_redirect($_SESSION['post_auth_url']);
+	}
 }
 
 // Yubikey Authentication
@@ -739,7 +801,7 @@ function test_mode () {
 	}
 	
 	// Yubikey
-	if ($profile['auth_type'] == 'yubikey') {
+	if ($profile['auth_type'] == 'yubikey' || $profile['auth_type'] == 'yubikey_twofactor') {
 		$res['yubikey'] = (include 'Auth/Yubico.php')
 		? 'pass' : 'warn - not loaded';
 	} else {
