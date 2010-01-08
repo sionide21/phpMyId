@@ -195,6 +195,9 @@ function associate_mode () {
  */
 function authorize_mode () {
 	global $profile;
+	$auth_types = array(
+		'digest' => send_digest_auth
+	);
 
 	// this is a user session
 	user_session();
@@ -202,6 +205,16 @@ function authorize_mode () {
 	// the user needs refresh urls in their session to access this mode
 	if (! isset($_SESSION['post_auth_url']) || ! isset($_SESSION['cancel_auth_url']))
 		error_500('You may not access this mode directly.');
+
+	if (! isset($auth_types[$profile['auth_type']]))
+		error_500('Configuration Error: Invalid authentication type (auth_type).');
+
+	$auth_types[$profile['auth_type']]();
+}
+
+// Use digest Authentication
+function send_digest_auth() {
+	global $profile;
 
 	// try to get the digest headers - what a PITA!
 	if (function_exists('apache_request_headers') && ini_get('safe_mode') == false) {
@@ -310,7 +323,6 @@ function authorize_mode () {
 	$q = strpos($_SESSION['cancel_auth_url'], '?') ? '&' : '?';
 	wrap_refresh($_SESSION['cancel_auth_url'] . $q . 'openid.mode=cancel');
 }
-
 
 /**
  *  Handle a consumer's request for cancellation.
