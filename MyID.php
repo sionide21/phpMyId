@@ -1738,6 +1738,10 @@ $profile['req_url'] = sprintf("%s://%s%s",
 		      $_SERVER['HTTP_HOST'],
 		      $_SERVER["REQUEST_URI"]);
 
+// If no auth type is defined use digest (for backwards compatibility)
+if (! array_key_exists('auth_type', $profile))
+	$profile['auth_type'] = 'digest';
+
 // Set the default allowance for testing
 if (! array_key_exists('allow_test', $profile))
 	$profile['allow_test'] = false;
