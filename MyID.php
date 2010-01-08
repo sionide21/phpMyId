@@ -64,6 +64,19 @@ $GLOBALS['p'] = '155172898181473697471232257763715539915724801966915404479707' .
 '253359305585439638443';
 
 
+// Acceptable auth types and their required fields
+$auth_types = array();
+
+$auth_types['digest'] = array(
+	'method' => digest_auth,
+	'keys'   => array('auth_username', 'auth_password')
+);
+
+$auth_types['yubikey'] = array(
+	'method' => yubikey_auth,
+	'keys'   => array('auth_username', 'yk_api_id', 'yk_api_key')
+);
+
 // Runmode functions
 
 /**
@@ -192,13 +205,10 @@ function associate_mode () {
 /**
  * Perform a user authorization
  * @global array $profile
+ * @global array $auth_types
  */
 function authorize_mode () {
-	global $profile;
-	$auth_types = array(
-		'digest'  => digest_auth,
-		'yubikey' => yubikey_auth
-	);
+	global $profile, $auth_types;
 
 	// this is a user session
 	user_session();
@@ -207,10 +217,7 @@ function authorize_mode () {
 	if (! isset($_SESSION['post_auth_url']) || ! isset($_SESSION['cancel_auth_url']))
 		error_500('You may not access this mode directly.');
 
-	if (! isset($auth_types[$profile['auth_type']]))
-		error_500('Configuration Error: Invalid authentication type (auth_type).');
-
-	$auth_types[$profile['auth_type']]();
+	$auth_types[$profile['auth_type']]['method']();
 }
 
 // Yubikey Authentication
@@ -1430,9 +1437,10 @@ function secret ( $handle ) {
  * Do an internal self check
  * @global array $profile
  * @global array $sreg
+ * @global array $auth_types
  */
 function self_check () {
-	global $profile, $sreg;
+	global $profile, $sreg, $auth_types;
 
 	if (! isset($profile) || ! is_array($profile))
 		error_500('No configuration found, you shouldn\'t access this file directly.');
@@ -1454,8 +1462,11 @@ function self_check () {
 			error_500("phpMyID is not compatible with '$x'");
 	}
 
-	$keys = array('auth_username', 'auth_password');
-	foreach ($keys as $key) {
+	if (! isset($auth_types[$profile['auth_type']]))
+		error_500('Configuration Error: Invalid auth_type.');
+
+	// Check required keys for current auth type
+	foreach ($auth_types[$profile['auth_type']]['keys'] as $key) {
 		if (! array_key_exists($key, $profile))
 			error_500("'$key' is missing from your profile.");
 	}
