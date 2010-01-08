@@ -30,7 +30,6 @@ $GLOBALS['profile'] = array(
 
 	# Advanced Config - Please see README before setting these
 #	'allow_gmp'	=>	false,
-#	'allow_yubikey'	=>	false,
 #	'allow_test'	=> 	false,
 #	'allow_suhosin'	=>	false,
 #	'auth_realm'	=>	'phpMyID',

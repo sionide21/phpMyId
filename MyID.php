@@ -689,7 +689,7 @@ function test_mode () {
 	}
 	
 	// Yubikey
-	if ($profile['allow_yubikey']) {
+	if ($profile['auth_type'] == 'yubikey') {
 		$res['yubikey'] = (include 'Auth/Yubico.php')
 		? 'pass' : 'warn - not loaded';
 	} else {
