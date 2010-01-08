@@ -265,12 +265,15 @@ RESP;
 	require_once 'Auth/Yubico.php';
 	$yubi = &new Auth_Yubico($profile['yk_api_id'], $profile['yk_api_key']);
 
+	$otp = $yubi->parsePasswordOTP($_POST['otp']);
+	if ($otp['prefix'] != $profile['auth_username']) {
+				wrap_html("<div style=\"color:red;font-family:\">Wrong Yubikey</div><br/>" . $yk_login);
+	}
 	$auth = $yubi->verify($_POST['otp']);
 	if (PEAR::isError($auth)) {
 		wrap_html("<div style=\"color:red;font-family:\">Authentication Error: $auth</div><br/>" . $yk_login);
 	} else {
 		// Successful login
-		$otp = $yubi->parsePasswordOTP($_POST['otp']);
 		debug('Authentication successful');
 		debug('User session is: ' . session_id());
 		$_SESSION['auth_username'] = $otp['prefix'];
@@ -307,12 +310,15 @@ RESP;
 	require_once 'Auth/Yubico.php';
 	$yubi = &new Auth_Yubico($profile['yk_api_id'], $profile['yk_api_key']);
 
+	$otp = $yubi->parsePasswordOTP($_POST['otp']);
+	if ($otp['prefix'] != $profile['auth_username']) {
+				wrap_html("<div style=\"color:red;font-family:\">Wrong Yubikey</div><br/>" . $yk_login);
+	}
 	$auth = $yubi->verify($_POST['otp']);
 	if (PEAR::isError($auth)) {
 		wrap_html("<div style=\"color:red;font-family:\">Authentication Error: $auth</div><br/>" . $yk_login);
 	} else {
 		// Successful login
-		$otp = $yubi->parsePasswordOTP($_POST['otp']);
 		debug('Authentication successful');
 		debug('User session is: ' . session_id());
 		$_SESSION['auth_username'] = $otp['prefix'];
