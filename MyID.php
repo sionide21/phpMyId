@@ -196,7 +196,8 @@ function associate_mode () {
 function authorize_mode () {
 	global $profile;
 	$auth_types = array(
-		'digest' => send_digest_auth
+		'digest'  => digest_auth,
+		'yubikey' => yubikey_auth
 	);
 
 	// this is a user session
@@ -212,8 +213,50 @@ function authorize_mode () {
 	$auth_types[$profile['auth_type']]();
 }
 
+// Yubikey Authentication
+function yubikey_auth() {
+	global $profile;
+
+	$yk_login = <<<RESP
+		<style>
+			.yubiKeyInput{
+				background: white
+				url(data:image/gif;base64,R0lGODlhEAAQAOYAAKvPNNHlj8PdbrXVTbfWUazQN/H33PP44fr8897sr7bVT7fXUvH33cHbafz99+v0z6zQMKvPM8DbZtPmlLjWU8ffdKvPNfr89Pv99bbWT8/ki+vzzcLcbN7tsOz007LTP7HTPPL44cPdbfv99MTdcfX55sHcad7srNzrrNbomb/aYrzZWPz++M7jhcHbar3ZYKbNIe3106zPNe/22aPLGfn78v7+/rbVTqXNIOjyxcffcsDcaOz10b7aYvr88r/bZez00bbWSr/aY9Hkj7/bZt3srvf67PD228zif+Xwvfz9+NzrqqjNJMHbaOv0zt3rq+bxwd/tsarPK6zPNrzYV7XVS7fWUvn78erzy8Pcbc/kjMPdb7/bZOrzzb3aYOrzyv///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAAAAAAALAAAAAAQABAAAAesgGCCg4SFhRhRJBQUWwkXhmA8BBFcGlpEEQpOhR4FLwyEB0IWD4MIVl4Yhg4/AzWCHQAGYCk0XyMQFWAhMk+CAk2CJRAtSUwbgiIuggsBgxUfVCs2ghM3zM6COVIwJ4MTA78mg0pBIEaDAg2CCQCgYDE4SIMHBUuCCBk9DmBQOrNgWEiocmUQkCkqZhA6IgFAl0IPFADYEWBIAwsDsEC6UCQLAQIcUPiARLJQIAA7) no-repeat 2px 2px; 
+				padding-left: 20px;
+				height: 18px;
+				width: 300px;
+			}
+		</style>
+		<form method="post"> YubiKey:
+		<input autocomplete="off" type="text" name="otp" class="yubiKeyInput">
+		</form>
+RESP;
+
+	if(! isset($_POST['otp'])) {
+		wrap_html($yk_login);
+	}
+	require_once 'Auth/Yubico.php';
+	$yubi = &new Auth_Yubico($profile['yk_api_id'], $profile['yk_api_key']);
+
+	$auth = $yubi->verify($_POST['otp']);
+	if (PEAR::isError($auth)) {
+		wrap_html("<div style=\"color:red;font-family:\">Authentication Error: $auth</div><br/>" . $yk_login);
+	} else {
+		// Successful login
+		$otp = $yubi->parsePasswordOTP($_POST['otp']);
+		debug('Authentication successful');
+		debug('User session is: ' . session_id());
+		$_SESSION['auth_username'] = $otp['prefix'];
+		$_SESSION['auth_url'] = $profile['idp_url'];
+		$profile['authorized'] = true;
+
+		// return to the refresh url if they get in
+		wrap_redirect($_SESSION['post_auth_url']);
+	}
+}
+
 // Use digest Authentication
-function send_digest_auth() {
+function digest_auth() {
 	global $profile;
 
 	// try to get the digest headers - what a PITA!
