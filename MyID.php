@@ -74,7 +74,7 @@ $auth_types['digest'] = array(
 
 $auth_types['yubikey'] = array(
 	'method' => yubikey_auth,
-	'keys'   => array('auth_username', 'yk_api_id', 'yk_api_key')
+	'keys'   => array('yk_id', 'yk_api_id', 'yk_api_key')
 );
 
 $auth_types['yubikey_twofactor'] = array(
@@ -268,7 +268,17 @@ function authorize_mode () {
 	if (! isset($_SESSION['post_auth_url']) || ! isset($_SESSION['cancel_auth_url']))
 		error_500('You may not access this mode directly.');
 
-	$auth_types[$profile['auth_type']]['method']();
+	// If auth_type is an array, we can fall through each auth type
+	if (gettype($profile['auth_type']) == 'array') {
+		foreach ($profile['auth_type'] as $type) {
+			$auth_types[$type]['method']();
+		}
+	} else {
+		$auth_types[$profile['auth_type']]['method']();
+	}
+
+	debug('No remaining accepted auth types.');
+	error_get($_SESSION['cancel_auth_url'], 'No remaining auth types.');	
 }
 
 // Yubikey Two-Factor Authentication
@@ -289,9 +299,15 @@ function yubikey_twofac_auth() {
 		<table>
 		<tr><th>Password:</th><td><input autocomplete="off" type="password" name="password"></td></tr>
 		<tr><th>YubiKey:</th><td><input autocomplete="off" type="text" name="otp" class="yubiKeyInput"></td></tr>
-		<tr><td>$nbsp</td><td><input type="submit" value="login"></td></tr>
+		<tr><td>$nbsp</td><td><input type="submit" value="login"> <a href="?openid.mode=authorize&skip_yk=true">skip</a></td></tr><br />
 		</form>
 RESP;
+
+	// returning from an auth function causes
+	// the next auth specified to be run
+	if ($_GET['skip_yk'] == 'true') {
+		return;
+	}
 
 	if(! isset($_POST['otp']) || ! isset($_POST['password'])) {
 		wrap_html($yk_login);
@@ -308,32 +324,11 @@ RESP;
 		wrap_html("<div style=\"color:red;font-family:\">Invalid Password</div><br/>" . $yk_login);
 	}
 
-	require_once 'Auth/Yubico.php';
-	$yubi = &new Auth_Yubico($profile['yk_api_id'], $profile['yk_api_key']);
-
-	$otp = $yubi->parsePasswordOTP($_POST['otp']);
-	if ($otp['prefix'] != $profile['auth_username']) {
-				wrap_html("<div style=\"color:red;font-family:\">Wrong Yubikey</div><br/>" . $yk_login);
-	}
-	$auth = $yubi->verify($_POST['otp']);
-	if (PEAR::isError($auth)) {
-		wrap_html("<div style=\"color:red;font-family:\">Authentication Error: $auth</div><br/>" . $yk_login);
-	} else {
-		// Successful login
-		debug('Authentication successful');
-		debug('User session is: ' . session_id());
-		$_SESSION['auth_username'] = $otp['prefix'];
-		$_SESSION['auth_url'] = $profile['idp_url'];
-		$profile['authorized'] = true;
-
-		// return to the refresh url if they get in
-		wrap_redirect($_SESSION['post_auth_url']);
-	}
+	handle_yubikey($yk_login);
 }
 
 // Yubikey Authentication
 function yubikey_auth() {
-	global $profile;
 
 	$yk_login = <<<RESP
 		<style>
@@ -346,9 +341,23 @@ function yubikey_auth() {
 			}
 		</style>
 		<form method="post"> YubiKey:
-		<input autocomplete="off" type="text" name="otp" class="yubiKeyInput">
+		<input autocomplete="off" type="text" name="otp" class="yubiKeyInput"><br />
+		<a href="?openid.mode=authorize&skip_yk=true">skip</a>
 		</form>
 RESP;
+
+	handle_yubikey($yk_login);
+}
+
+
+function handle_yubikey($yk_login) {
+	global $profile;
+
+	// returning from an auth function causes
+	// the next auth specified to be run
+	if ($_GET['skip_yk'] == 'true') {
+		return;
+	}
 
 	if(! isset($_POST['otp'])) {
 		wrap_html($yk_login);
@@ -357,8 +366,8 @@ RESP;
 	$yubi = &new Auth_Yubico($profile['yk_api_id'], $profile['yk_api_key']);
 
 	$otp = $yubi->parsePasswordOTP($_POST['otp']);
-	if ($otp['prefix'] != $profile['auth_username']) {
-				wrap_html("<div style=\"color:red;font-family:\">Wrong Yubikey</div><br/>" . $yk_login);
+	if ($otp['prefix'] != $profile['yk_id']) {
+				wrap_html("<div style=\"color:red;font-family:\">Wrong Yubikey</div><br/>" . $otp['prefix'] . ' ' . $profile['yk_id'] . $yk_login);
 	}
 	$auth = $yubi->verify($_POST['otp']);
 	if (PEAR::isError($auth)) {
@@ -367,7 +376,7 @@ RESP;
 		// Successful login
 		debug('Authentication successful');
 		debug('User session is: ' . session_id());
-		$_SESSION['auth_username'] = $otp['prefix'];
+		$_SESSION['auth_username'] = $profile['auth_username'];
 		$_SESSION['auth_url'] = $profile['idp_url'];
 		$profile['authorized'] = true;
 
@@ -851,7 +860,7 @@ function test_mode () {
 	} else {
 		$res['gmp'] = 'pass - n/a';
 	}
-	
+
 	// Yubikey
 	if ($profile['auth_type'] == 'yubikey' || $profile['auth_type'] == 'yubikey_twofactor') {
 		$res['yubikey'] = (include 'Auth/Yubico.php')
@@ -1579,19 +1588,38 @@ function self_check () {
 			error_500("phpMyID is not compatible with '$x'");
 	}
 
-	if (! isset($auth_types[$profile['auth_type']]))
-		error_500('Configuration Error: Invalid auth_type.');
+
 
 	// Check required keys for current auth type
-	foreach ($auth_types[$profile['auth_type']]['keys'] as $key) {
-		if (! array_key_exists($key, $profile))
-			error_500("'$key' is missing from your profile.");
+	if (gettype($profile['auth_type']) == 'array') {
+		foreach ($profile['auth_type'] as $type) {
+			if (! isset($auth_types[$type]))
+				error_500('Configuration Error: Invalid auth_type.');
+			check_keys($type);
+		}
+	} else {
+		if (! isset($auth_types[$profile['auth_type']]))
+			error_500('Configuration Error: Invalid auth_type.');
+		check_keys($profile['auth_type']);
 	}
 
 	if (! isset($sreg) || ! is_array($sreg))
 		$sreg = array();
 }
 
+/**
+ * Verify the profile has the necessary keys for an auth type.
+ * @global array $profile
+ * @global array $auth_types
+ */
+function check_keys($type) {
+	global $profile, $auth_types;
+
+	foreach ($auth_types[$type]['keys'] as $key) {
+		if (! array_key_exists($key, $profile))
+			error_500("'$key' is missing from your profile.");
+	}
+}
 
 /**
  * Do SHA1 20 byte encryption
