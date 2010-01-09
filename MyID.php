@@ -824,7 +824,13 @@ function logout_mode () {
 function no_mode () {
 	global $profile;
 
-	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>Server: <b>' . $profile['idp_url'] . '</b><br/>Realm: <b>' . $profile['php_realm'] . '</b><br/><a href="' . $profile['idp_url'] . '?openid.mode=login">Login</a>' . ($profile['allow_test'] === true ? ' | <a href="' . $profile['idp_url'] . '?openid.mode=test">Test</a>' : null));
+	user_session();
+
+	$logmode = $profile['authorized'] ?
+		'<a href="' . $profile['idp_url'] . '?openid.mode=logout">Logout</a>'
+	   :'<a href="' . $profile['idp_url'] . '?openid.mode=login">Login</a>';
+
+	wrap_html('This is an OpenID server endpoint. For more information, see http://openid.net/<br/>Server: <b>' . $profile['idp_url'] . '</b><br/>Realm: <b>' . $profile['php_realm'] . '</b><br/>' . $logmode . ($profile['allow_test'] === true ? ' | <a href="' . $profile['idp_url'] . '?openid.mode=test">Test</a>' : null));
 }
 
 
