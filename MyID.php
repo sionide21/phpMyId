@@ -118,7 +118,53 @@ function accept_mode () {
 	$yes = $profile['req_url'] . $q . 'accepted=yes';
 	$no  = $profile['req_url'] . $q . 'accepted=no';
 
-	wrap_html('The client site you are attempting to log into has requested that you trust the following URL:<br/><b>' . $_SESSION['unaccepted_url'] . '</b><br/><br/>Do you wish to continue?<br/><a href="' . $yes . '">Yes</a> | <a href="' . $no . '">No</a>');
+	// x-f: warn user, if sreg info was requested
+    $sreg_html = "";
+    $sreg_params = "";
+    // get requested SREG fields from the URL
+    parse_str($_SESSION['post_accept_url'], $parsed_string);
+    if (isset($parsed_string['openid_sreg_required']))
+      $sreg_params .= $parsed_string['openid_sreg_required'];
+    if (isset($parsed_string['openid_sreg_optional']))
+      $sreg_params .=  ',' . $parsed_string['openid_sreg_optional'];
+    $sreg_params = trim($sreg_params, ', ');
+    $sreg_params = explode(',', $sreg_params);
+    $sreg_params_html = "";
+    if (isset($sreg_params[0]) && $sreg_params[0] != "") {
+      if (isset($_SESSION['auth_username']) && $_SESSION['auth_username'] != "") {
+          // make a list with requested SREG fields and their values
+          foreach($sreg_params as $param) {
+            $sreg_key = $param;
+            if (isset($GLOBALS['sreg'][$param]) && $GLOBALS['sreg'][$param] != "") {
+              $sreg_value = $GLOBALS['sreg'][$param];
+              if ($sreg_key == "dob") $sreg_key = "birthday"; // it's not obvious, ok?
+            } else {
+              $sreg_value = "<em>(not set)</em>";
+            }
+            $sreg_params_html .= '&nbsp;&nbsp;&nbsp;';
+            $sreg_params_html .= '<strong>' . $sreg_key . '</strong>: ';
+            $sreg_params_html .= $sreg_value;
+            $sreg_params_html .= '<br/>';
+          }
+      } else {
+          // make a list with requested SREG fields only since user is not logged in.
+          foreach($sreg_params as $param) {
+            $sreg_key = $param;
+            if (isset($GLOBALS['sreg'][$param]) && $GLOBALS['sreg'][$param] != "") {
+              if ($sreg_key == "dob") $sreg_key = "birthday"; // it's not obvious, ok?
+            }
+            $sreg_params_html .= '&nbsp;&nbsp;&nbsp;';
+            $sreg_params_html .= '<strong>' . $sreg_key . '</strong><br/>';
+          }
+      }
+    }
+    if ($sreg_params_html != "") {
+        $sreg_html .= '<br/>This site also wants to receive some information about you:<br/>';
+        $sreg_html .= $sreg_params_html;
+    }
+
+    wrap_html('The client site you are attempting to log into has requested that you trust the following URL:<br/><b>' . $_SESSION['unaccepted_url'] . '</b><br/>' . $sreg_html . '<br/>Do you wish to continue?<br/><a href="' . $yes . '">Yes</a> | <a href="' . $no . '">No</a>');
+
 }
 
 /** * Perform an association with a consumer
