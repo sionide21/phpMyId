@@ -104,6 +104,9 @@ function accept_mode () {
 	// this is a user session
 	user_session();
 
+	// If we make it back to the accept page, skip is no longer valid
+	$_SESSION['skip'] = array();
+
 	// the user needs refresh urls in their session to access this mode
 	if (! isset($_SESSION['post_accept_url']) || ! isset($_SESSION['cancel_accept_url']) || ! isset($_SESSION['unaccepted_url']))
 		error_500('You may not access this mode directly.');
