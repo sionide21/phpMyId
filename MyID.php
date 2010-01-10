@@ -104,9 +104,6 @@ function accept_mode () {
 	// this is a user session
 	user_session();
 
-	// If we make it back to the accept page, skip is no longer valid
-	$_SESSION['skip'] = array();
-
 	// the user needs refresh urls in their session to access this mode
 	if (! isset($_SESSION['post_accept_url']) || ! isset($_SESSION['cancel_accept_url']) || ! isset($_SESSION['unaccepted_url']))
 		error_500('You may not access this mode directly.');
@@ -1437,6 +1434,9 @@ function destroy_assoc_handle ( $id ) {
  * @param string $message
  */
 function error_400 ( $message = 'Bad Request' ) {
+	// skip is no longer valid
+	user_session();
+	$_SESSION['skip'] = array();
 	header("HTTP/1.1 400 Bad Request");
 	wrap_html($message);
 }
@@ -1447,6 +1447,9 @@ function error_400 ( $message = 'Bad Request' ) {
  * @param string $message
  */
 function error_403 ( $message = 'Forbidden' ) {
+	// skip is no longer valid
+	user_session();
+	$_SESSION['skip'] = array();
 	header("HTTP/1.1 403 Forbidden");
 	wrap_html($message);
 }
@@ -1457,6 +1460,9 @@ function error_403 ( $message = 'Forbidden' ) {
  * @param string $message
  */
 function error_500 ( $message = 'Internal Server Error' ) {
+	// skip is no longer valid
+	user_session();
+	$_SESSION['skip'] = array();
 	header("HTTP/1.1 500 Internal Server Error");
 	wrap_html($message);
 }
@@ -1467,6 +1473,9 @@ function error_500 ( $message = 'Internal Server Error' ) {
  * @param string $message
  */
 function error_get ( $url, $message = 'Bad Request') {
+	// skip is no longer valid
+	user_session();
+	$_SESSION['skip'] = array();
 	wrap_keyed_redirect($url, array('mode' => 'error', 'error' => $message));
 }
 
@@ -1476,6 +1485,9 @@ function error_get ( $url, $message = 'Bad Request') {
  * @param string $message
  */
 function error_post ( $message = 'Bad Request' ) {
+	// skip is no longer valid
+	user_session();
+	$_SESSION['skip'] = array();
 	header("HTTP/1.1 400 Bad Request");
 	echo ('error:' . $message);
 	exit(0);
