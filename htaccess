@@ -25,3 +25,12 @@
 #<Files auth.php>
 #	#auth directives here
 #</Files>
+
+# This will come into play if you use client side certificates
+<IfModule mod_ssl.c>
+    <Files cert.php>
+        SSLVerifyClient require
+        SSLVerifyDepth 3
+        SSLUserName SSL_CLIENT_M_SERIAL
+    </Files>
+</IfModule>

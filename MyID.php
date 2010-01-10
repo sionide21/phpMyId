@@ -72,6 +72,11 @@ $auth_types['apache'] = array(
 	'keys'   => array('auth_username')
 );
 
+$auth_types['cert'] = array(
+	'method' => cert_auth,
+	'keys'   => array('auth_username', 'certificates')
+);
+
 $auth_types['digest'] = array(
 	'method' => digest_auth,
 	'keys'   => array('auth_username', 'auth_password', 'auth_realm')
@@ -286,12 +291,23 @@ function authorize_mode () {
 	error_get($_SESSION['cancel_auth_url'], 'No remaining auth types.');	
 }
 
+function finish_authorize() {
+	$_SESSION['auth_url'] = $profile['idp_url'];
+	$profile['authorized'] = true;
+	$_SESSION['skip'] = array();
+
+	// return to the refresh url if they get in
+	wrap_redirect($_SESSION['post_auth_url']);
+}
+
 // Let apache handle the auth
 function apache_auth() {
 	global $profile;
-	if ($_GET['skip_apache'] == 'true') {
+	if ($_GET['skip_apache'] == 'true' || $_SESSION['skip']['apache']) {
+		$_SESSION['skip']['apache'] = true;
 		return;
 	}
+
 	if (!isset ($_SESSION['server_user'])) {
 		$_SESSION['auth_url'] = $profile['req_url'];
 		wrap_redirect('auth.php');
@@ -302,11 +318,41 @@ function apache_auth() {
 		debug('Authentication successful');
 		debug('User session is: ' . session_id());
 		$_SESSION['auth_username'] = $profile['auth_username'];
-		$_SESSION['auth_url'] = $profile['idp_url'];
-		$profile['authorized'] = true;
-		
-		// return to the refresh url if they get in
-		wrap_redirect($_SESSION['post_auth_url']);
+
+		finish_authorize();
+	}
+	debug('Invalid User');
+	error_get($_SESSION['cancel_auth_url'], 'The user ' . $_SESSION['server_user'] . ' is not allow access to this server.');
+}
+
+// Let apache handle certs
+function cert_auth() {
+	global $profile;
+	if ($_GET['skip_cert'] || $_SESSION['skip']['cert']) {
+		$_SESSION['skip']['cert'] = true;
+		return;
+	}
+
+	if (!isset ($_SESSION['cert_number'])) {
+
+		$prompt = <<<RESP
+			This server is setup to use client side ssl certificates.<br/> To proceed with this method of authentication, click 'Proceed' below. To attempt another method, click 'Skip'.<br/>
+			<a href="?openid.mode=authorize&do_cert=true">Proceed</a> | <a href="?openid.mode=authorize&skip_cert=true">Skip</a>
+RESP;
+		if(! isset($_GET['do_cert'])) {
+			wrap_html($prompt);
+		}
+		$_SESSION['auth_url'] = $profile['req_url'];
+		wrap_redirect('cert.php');
+	}
+	if (in_array($_SESSION['cert_number'], $profile['certificates'])) {
+		// Successful login
+		unset($_SESSION['cert_number']);
+		debug('Authentication successful');
+		debug('User session is: ' . session_id());
+		$_SESSION['auth_username'] = $profile['auth_username'];
+
+		finish_authorize();
 	}
 	debug('Invalid User');
 	error_get($_SESSION['cancel_auth_url'], 'The user ' . $_SESSION['server_user'] . ' is not allow access to this server.');
@@ -336,7 +382,8 @@ RESP;
 
 	// returning from an auth function causes
 	// the next auth specified to be run
-	if ($_GET['skip_yk'] == 'true') {
+	if ($_GET['skip_yk'] == 'true'|| $_SESSION['skip']['yk']) {
+		$_SESSION['skip']['yk'] = true;
 		return;
 	}
 
@@ -386,7 +433,8 @@ function handle_yubikey($yk_login) {
 
 	// returning from an auth function causes
 	// the next auth specified to be run
-	if ($_GET['skip_yk'] == 'true') {
+	if ($_GET['skip_yk'] == 'true'|| $_SESSION['skip']['yk']) {
+		$_SESSION['skip']['yk'] = true;
 		return;
 	}
 
@@ -408,11 +456,8 @@ function handle_yubikey($yk_login) {
 		debug('Authentication successful');
 		debug('User session is: ' . session_id());
 		$_SESSION['auth_username'] = $profile['auth_username'];
-		$_SESSION['auth_url'] = $profile['idp_url'];
-		$profile['authorized'] = true;
 
-		// return to the refresh url if they get in
-		wrap_redirect($_SESSION['post_auth_url']);
+		finish_authorize();
 	}
 }
 
@@ -487,11 +532,8 @@ function digest_auth() {
 				debug('Authentication successful');
 				debug('User session is: ' . session_id());
 				$_SESSION['auth_username'] = $hdr['username'];
-				$_SESSION['auth_url'] = $profile['idp_url'];
-				$profile['authorized'] = true;
 
-				// return to the refresh url if they get in
-				wrap_redirect($_SESSION['post_auth_url']);
+				finish_authorize();
 
 			// failed login
 			} else {
@@ -532,6 +574,8 @@ function digest_auth() {
  *  Handle a consumer's request for cancellation.
  */
 function cancel_mode () {
+	user_session();
+	$_SESSION['skip'] = array();
 	wrap_html('Request cancelled.');
 }
 
@@ -1802,6 +1846,10 @@ function user_session () {
 			    && $_SESSION['auth_username'] == $profile['auth_username'])
 			? true
 			: false;
+
+	if (!isset ($_SESSION['skip'])) {
+		$_SESSION['skip'] = array();
+	}
 
 	debug('Started user session: ' . session_id() . ' Auth? ' . $profile['authorized']);
 }
