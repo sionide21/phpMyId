@@ -1435,7 +1435,7 @@ function destroy_assoc_handle ( $id ) {
  * Return an error message to the user
  * @param string $message
  */
-function error_400 ( $message = 'Bad Request' ) {\
+function error_400 ( $message = 'Bad Request' ) {
 	header("HTTP/1.1 400 Bad Request");
 	wrap_html($message);
 }
