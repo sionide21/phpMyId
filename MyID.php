@@ -341,7 +341,7 @@ function cert_auth() {
 			This server is setup to use client side ssl certificates.<br/> To proceed with this method of authentication, click 'Proceed' below. To attempt another method, click 'Skip'.<br/>
 			<a href="?openid.mode=authorize&do_cert=true">Proceed</a> | <a href="?openid.mode=authorize&skip_cert=true">Skip</a>
 RESP;
-		if(! isset($_GET['do_cert'])) {
+		if(! isset($_GET['do_cert']) && count($profile['auth_type']) != 1) {
 			wrap_html($prompt);
 		}
 		$_SESSION['auth_url'] = $profile['req_url'];
