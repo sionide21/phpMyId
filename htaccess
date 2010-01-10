@@ -19,3 +19,9 @@
 
 # Option 3, mod_setenvif
 #SetEnvIf Authorization "(.*)" PHP_AUTH_DIGEST=$1
+
+# If you are using apache authentications, you must protect the file
+# 'auto.php' with the form of authentication you want here is an example
+#<Files auth.php>
+#	#auth directives here
+#</Files>

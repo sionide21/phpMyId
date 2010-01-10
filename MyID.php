@@ -67,6 +67,11 @@ $GLOBALS['p'] = '155172898181473697471232257763715539915724801966915404479707' .
 // Acceptable auth types and their required fields
 $auth_types = array();
 
+$auth_types['apache'] = array(
+	'method' => apache_auth,
+	'keys'   => array('auth_username')
+);
+
 $auth_types['digest'] = array(
 	'method' => digest_auth,
 	'keys'   => array('auth_username', 'auth_password', 'auth_realm')
@@ -279,6 +284,32 @@ function authorize_mode () {
 
 	debug('No remaining accepted auth types.');
 	error_get($_SESSION['cancel_auth_url'], 'No remaining auth types.');	
+}
+
+// Let apache handle the auth
+function apache_auth() {
+	global $profile;
+	if ($_GET['skip_apache'] == 'true') {
+		return;
+	}
+	if (!isset ($_SESSION['server_user'])) {
+		$_SESSION['auth_url'] = $profile['req_url'];
+		wrap_redirect('auth.php');
+	}
+	if ($_SESSION['server_user'] == $profile['auth_username']) {
+		// Successful login
+		unset($_SESSION['server_user']);
+		debug('Authentication successful');
+		debug('User session is: ' . session_id());
+		$_SESSION['auth_username'] = $profile['auth_username'];
+		$_SESSION['auth_url'] = $profile['idp_url'];
+		$profile['authorized'] = true;
+		
+		// return to the refresh url if they get in
+		wrap_redirect($_SESSION['post_auth_url']);
+	}
+	debug('Invalid User');
+	error_get($_SESSION['cancel_auth_url'], 'The user ' . $_SESSION['server_user'] . ' is not allow access to this server.');
 }
 
 // Yubikey Two-Factor Authentication
