@@ -292,6 +292,8 @@ function authorize_mode () {
 }
 
 function finish_authorize() {
+	global $profile;
+
 	$_SESSION['auth_url'] = $profile['idp_url'];
 	$profile['authorized'] = true;
 	$_SESSION['skip'] = array();
