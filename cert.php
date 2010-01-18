@@ -15,14 +15,28 @@ session_name('phpMyID_Server');
 if ($_SESSION['auth_url']) {
 	if (isset ($_SERVER['REMOTE_USER'])) {
 		$_SESSION['cert_number'] = $_SERVER['REMOTE_USER'];
-		header('HTTP/1.1 302 Found');
-		header('Location: ' . $_SESSION['auth_url']);
+?>
+<html>
+    <head>
+        <script type="text/javascript">
+            window.top.location = "<?= $_SESSION['auth_url'] ?>";
+        </script>
+    <head>
+</html>
+<?php
 		exit(0);
 	} else {
-		header('HTTP/1.1 302 Found');
 		// If we got to this page without authenticating, it is not a 
 		// valid auth form and we can skip it.
-		header('Location: ' . $_SESSION['auth_url'] . '&skip_cert=true');
+?>
+<html>
+    <head>
+        <script type="text/javascript">
+            window.top.location = "<?= $_SESSION['auth_url'] ?>&skip_cert=true";
+        </script>
+    <head>
+</html>
+<?php
 		exit(0);
 	}
 } else {
