@@ -335,7 +335,7 @@ function cert_auth() {
 		return;
 	}
 
-	if (!isset ($_SESSION['cert_number'])) {
+	if (!isset ($_SESSION['cert_cn'])) {
 		$_SESSION['auth_url'] = $profile['req_url'];
 
 		$prompt = <<<RESP
@@ -345,9 +345,9 @@ function cert_auth() {
 RESP;
         wrap_html($prompt);
 	}
-	if (in_array($_SESSION['cert_number'], $profile['certificates'])) {
+	if (in_array($_SESSION['cert_cn'], $profile['certificates'])) {
 		// Successful login
-		unset($_SESSION['cert_number']);
+		unset($_SESSION['cert_cn']);
 		debug('Authentication successful');
 		debug('User session is: ' . session_id());
 		$_SESSION['auth_username'] = $profile['auth_username'];

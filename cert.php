@@ -14,7 +14,7 @@ session_name('phpMyID_Server');
 @session_start();
 if ($_SESSION['auth_url']) {
 	if (isset ($_SERVER['REMOTE_USER'])) {
-		$_SESSION['cert_number'] = $_SERVER['REMOTE_USER'];
+		$_SESSION['cert_cn'] = $_SERVER['REMOTE_USER'];
 ?>
 <html>
     <head>

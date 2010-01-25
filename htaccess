@@ -31,6 +31,6 @@
     <Files cert.php>
         SSLVerifyClient require
         SSLVerifyDepth 3
-        SSLUserName SSL_CLIENT_M_SERIAL
+        SSLUserName SSL_CLIENT_S_DN_CN
     </Files>
 </IfModule>
